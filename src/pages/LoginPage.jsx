@@ -11,6 +11,7 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import BrandMark from '../components/BrandMark'
 import { auth, db } from '../firebase'
 import useAuth from '../hooks/useAuth'
+import reportAuthFailure from '../utils/authFailureReporter'
 import fetchIpAddress from '../utils/ipFetcher'
 
 function GoogleIcon() {
@@ -55,11 +56,37 @@ function getAuthErrorMessage(error) {
     return 'Google sign-in was closed before it finished.'
   }
 
+  if (code === 'auth/popup-blocked') {
+    return 'The Google sign-in popup was blocked by the browser. Allow popups for this site and try again.'
+  }
+
+  if (code === 'auth/cancelled-popup-request') {
+    return 'Another Google sign-in popup is already in progress. Close the extra popup and try again.'
+  }
+
+  if (code === 'auth/unauthorized-domain') {
+    return 'This production domain is not authorized in Firebase Authentication yet. Add your deployed domain in Firebase Console -> Authentication -> Settings -> Authorized domains.'
+  }
+
+  if (code === 'auth/operation-not-allowed') {
+    return 'Google sign-in is not enabled for this Firebase project. Enable Google in Firebase Console -> Authentication -> Sign-in method.'
+  }
+
+  if (code === 'auth/account-exists-with-different-credential') {
+    return 'This email already exists with a different sign-in method. Sign in with the existing method first, then link Google if needed.'
+  }
+
+  if (code === 'auth/network-request-failed') {
+    return 'The network request failed while contacting Firebase. Check your connection and try again.'
+  }
+
   if (code === 'auth/weak-password') {
     return 'Choose a stronger password with at least 6 characters.'
   }
 
-  return 'Authentication failed. Please try again.'
+  return code
+    ? `Authentication failed (${code}). Please try again.`
+    : 'Authentication failed. Please try again.'
 }
 
 export default function LoginPage() {
@@ -127,6 +154,14 @@ export default function LoginPage() {
         success: false,
         ipAddress,
       })
+      await reportAuthFailure({
+        method,
+        authMode,
+        code: error?.code ?? null,
+        message: error?.message ?? null,
+        ipAddress,
+        emailProvided: Boolean(email.trim()),
+      })
 
       setErrorMessage(getAuthErrorMessage(error))
     } finally {
@@ -159,6 +194,14 @@ export default function LoginPage() {
         method: 'google',
         success: false,
         ipAddress,
+      })
+      await reportAuthFailure({
+        method: 'google',
+        authMode,
+        code: error?.code ?? null,
+        message: error?.message ?? null,
+        ipAddress,
+        emailProvided: false,
       })
 
       setErrorMessage(getAuthErrorMessage(error))
