@@ -1,20 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { addDoc, collection, deleteDoc, doc, Timestamp } from 'firebase/firestore'
-import { Archive, LoaderCircle, SearchX } from 'lucide-react'
+import { FolderPlus, LoaderCircle, SearchX, X } from 'lucide-react'
 import Header from '../components/Header'
 import ProjectCard from '../components/ProjectCard'
 import SearchBar from '../components/SearchBar'
 import SkeletonCard from '../components/SkeletonCard'
 import SortFilterBar from '../components/SortFilterBar'
 import ToastContainer from '../components/ToastContainer'
+import { LANGUAGE_COLORS } from '../constants/languageColors'
 import { db } from '../firebase'
 import useAuth from '../hooks/useAuth'
 import useProjects from '../hooks/useProjects'
 import useToast from '../hooks/useToast'
-import detectLanguages from '../utils/languageDetector'
-import countTotalLines from '../utils/lineCounter'
-import { getTimeValue } from '../utils/formatters'
-import { isZipFile, readZipProject } from '../utils/zipProject'
+import {
+  getTimeValue,
+  normalizeProjectPath,
+} from '../utils/formatters'
+import {
+  getPrimaryProjectLanguage,
+  getProjectLanguages,
+} from '../utils/projectLanguages'
 
 function isTypingTarget(element) {
   if (!element) {
@@ -39,32 +44,31 @@ function compareProjects(left, right, sort) {
     return getTimeValue(right.lastOpenedAt) - getTimeValue(left.lastOpenedAt)
   }
 
-  if (sort === 'totalLines') {
-    return (right.totalLines ?? 0) - (left.totalLines ?? 0)
-  }
-
   if (sort === 'language') {
-    return (left.primaryLanguage ?? 'Other').localeCompare(
-      right.primaryLanguage ?? 'Other',
+    return getPrimaryProjectLanguage(left).localeCompare(
+      getPrimaryProjectLanguage(right),
     )
   }
 
   return getTimeValue(right.lastUpdatedAt) - getTimeValue(left.lastUpdatedAt)
 }
 
-function getImportErrorMessage(error, sourceType = 'folder') {
+function getImportErrorMessage(error) {
   if (error?.code === 'permission-denied') {
-    return 'Import failed because Firestore denied the write. Check your Firestore rules and make sure you are signed in.'
+    return 'Adding the project failed because Firestore denied the write. Check your Firestore rules and make sure you are signed in.'
   }
 
   if (error?.code === 'unavailable') {
-    return 'Import failed because Firestore is unavailable right now. Please try again in a moment.'
+    return 'Adding the project failed because Firestore is unavailable right now. Please try again in a moment.'
   }
 
-  return sourceType === 'zip'
-    ? 'Unable to import that zip archive.'
-    : 'Unable to import that project folder.'
+  return 'Unable to add that project right now.'
 }
+
+const MAX_PROJECTS = 10
+const MANUAL_LANGUAGE_OPTIONS = Object.keys(LANGUAGE_COLORS).filter(
+  (language) => language !== 'Other',
+)
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth()
@@ -77,12 +81,19 @@ export default function DashboardPage() {
   const [darkMode, setDarkMode] = useState(
     () => window.localStorage.getItem('proman-theme') === 'dark',
   )
-  const [zipImportState, setZipImportState] = useState({
+  const [isManualImportOpen, setIsManualImportOpen] = useState(false)
+  const [manualImportState, setManualImportState] = useState({
     active: false,
     message: '',
   })
+  const [projectDraft, setProjectDraft] = useState({
+    displayName: '',
+    absolutePath: '',
+    languagesList: [],
+  })
   const searchInputRef = useRef(null)
-  const zipImportInputRef = useRef(null)
+  const hasReachedProjectLimit = projects.length >= MAX_PROJECTS
+  const remainingProjectSlots = Math.max(0, MAX_PROJECTS - projects.length)
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode)
@@ -117,10 +128,17 @@ export default function DashboardPage() {
     }
   }, [addToast, error])
 
+  useEffect(() => {
+    if (hasReachedProjectLimit && isManualImportOpen) {
+      setIsManualImportOpen(false)
+      resetProjectDraft()
+    }
+  }, [hasReachedProjectLimit, isManualImportOpen])
+
   const availableLangs = useMemo(
     () =>
       Array.from(
-        new Set(projects.map((project) => project.primaryLanguage).filter(Boolean)),
+        new Set(projects.flatMap((project) => getProjectLanguages(project))),
       ).sort((left, right) => left.localeCompare(right)),
     [projects],
   )
@@ -144,7 +162,8 @@ export default function DashboardPage() {
           (project.absolutePath ?? '').toLowerCase().includes(searchTerm)
 
         const matchesLanguage =
-          filterLang === 'all' || project.primaryLanguage === filterLang
+          filterLang === 'all' ||
+          getProjectLanguages(project).includes(filterLang)
 
         const matchesTag =
           filterTag === 'all' ||
@@ -160,84 +179,98 @@ export default function DashboardPage() {
   const pinnedProjects = visibleProjects.filter((project) => project.isPinned)
   const regularProjects = visibleProjects.filter((project) => !project.isPinned)
 
-  async function createProjectEntry({
-    projectName,
-    entries,
-    sourceType,
-  }) {
-    setZipImportState({
-      active: true,
-      message: `Analyzing ${entries.length.toLocaleString('en-US')} files from ${projectName}...`,
-    })
-
-    const languages = detectLanguages(entries)
-    const totalLines = await countTotalLines(entries)
-    const timestamp = Timestamp.now()
-
-    setZipImportState({
-      active: true,
-      message: 'Saving project to your dashboard...',
-    })
-
-    await addDoc(collection(db, 'users', user.uid, 'projects'), {
-      displayName: projectName,
+  function resetProjectDraft() {
+    setProjectDraft({
+      displayName: '',
       absolutePath: '',
-      primaryLanguage: Object.keys(languages)[0] ?? 'Other',
-      languages,
-      totalLines,
-      tags: [],
-      notes: '',
-      sourceType,
-      isPinned: false,
-      isBroken: sourceType === 'zip',
-      createdAt: timestamp,
-      lastUpdatedAt: timestamp,
-      lastOpenedAt: null,
+      languagesList: [],
     })
   }
 
-  async function handleZipImportChange(event) {
-    const input = event.target
-    const zipFile = event.target.files?.[0] ?? null
-    input.value = ''
+  function handleLanguageToggle(language) {
+    setProjectDraft((currentDraft) => {
+      const hasLanguage = currentDraft.languagesList.includes(language)
+
+      return {
+        ...currentDraft,
+        languagesList: hasLanguage
+          ? currentDraft.languagesList.filter(
+              (currentLanguage) => currentLanguage !== language,
+            )
+          : [...currentDraft.languagesList, language],
+      }
+    })
+  }
+
+  function openManualImport() {
+    if (hasReachedProjectLimit) {
+      addToast(
+        `You can only import ${MAX_PROJECTS} projects here. Remove one before adding another.`,
+        'error',
+      )
+      return
+    }
+
+    setIsManualImportOpen(true)
+  }
+
+  async function handleManualImportSubmit(event) {
+    event.preventDefault()
 
     if (!user) {
-      addToast('You need to be signed in to import projects.', 'error')
+      addToast('You need to be signed in to add projects.', 'error')
       return
     }
 
-    if (!zipFile) {
+    if (hasReachedProjectLimit) {
+      addToast(
+        `You can only import ${MAX_PROJECTS} projects here. Remove one before adding another.`,
+        'error',
+      )
       return
     }
 
-    if (!isZipFile(zipFile)) {
-      addToast('Choose a .zip archive to import.', 'error')
+    const absolutePath = normalizeProjectPath(projectDraft.absolutePath)
+
+    if (!absolutePath) {
+      addToast('Add the local project path before saving.', 'error')
       return
     }
+
+    const languagesList = projectDraft.languagesList.length
+      ? projectDraft.languagesList
+      : ['Other']
+    const displayName =
+      projectDraft.displayName.trim()
+    const timestamp = Timestamp.now()
+
+    setManualImportState({
+      active: true,
+      message: `Adding ${displayName} to your dashboard...`,
+    })
 
     try {
-      setZipImportState({
-        active: true,
-        message: `Reading ${zipFile.name}...`,
+      await addDoc(collection(db, 'users', user.uid, 'projects'), {
+        displayName,
+        absolutePath,
+        primaryLanguage: languagesList[0] ?? 'Other',
+        languagesList,
+        tags: [],
+        notes: '',
+        isPinned: false,
+        isBroken: false,
+        createdAt: timestamp,
+        lastUpdatedAt: timestamp,
+        lastOpenedAt: null,
       })
 
-      const { projectName, entries } = await readZipProject(zipFile)
-
-      await createProjectEntry({
-        projectName,
-        entries,
-        sourceType: 'zip',
-      })
-
-      addToast(`Imported ${projectName} from zip archive.`, 'success')
-      addToast(
-        'Set the local project path on the new card so VS Code and Cursor can open the correct folder.',
-        'info',
-      )
+      resetProjectDraft()
+      setIsManualImportOpen(false)
+      addToast(`Added ${displayName}.`, 'success')
     } catch (error) {
-      addToast(error?.message || getImportErrorMessage(error, 'zip'), 'error')
+      addToast(getImportErrorMessage(error), 'error')
     } finally {
-      setZipImportState({ active: false, message: '' })
+      setManualImportState({ active: false, message: '' })
     }
   }
 
@@ -286,9 +319,9 @@ export default function DashboardPage() {
                 Open local projects faster than your dock can keep up.
               </h1>
               <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                Import zip archives, inspect language mix, fix local project
-                paths when needed, and launch the right workspace from one
-                searchable command center.
+                Add your local projects manually, keep paths editable, and save
+                a clean list of programming languages for each workspace. Free plan: You
+                can only import {MAX_PROJECTS} projects here.
               </p>
             </div>
 
@@ -311,7 +344,7 @@ export default function DashboardPage() {
               </div>
               <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-inset ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-                  Languages
+                  Lang
                 </p>
                 <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
                   {availableLangs.length}
@@ -319,20 +352,165 @@ export default function DashboardPage() {
               </div>
               <button
                 type="button"
-                disabled={zipImportState.active}
-                onClick={() => zipImportInputRef.current?.click()}
+                disabled={manualImportState.active || hasReachedProjectLimit}
+                onClick={openManualImport}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-80"
               >
-                {zipImportState.active ? (
+                {manualImportState.active ? (
                   <LoaderCircle className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Archive className="h-4 w-4" />
+                  <FolderPlus className="h-4 w-4" />
                 )}
-                {zipImportState.active ? 'Importing zip...' : 'Import zip'}
+                {manualImportState.active
+                  ? 'Adding project...'
+                  : hasReachedProjectLimit
+                    ? 'Project limit reached'
+                    : 'Add project'}
               </button>
             </div>
           </div>
+          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+            {hasReachedProjectLimit
+              ? `Free plan: Project limit reached. Each account can only import ${MAX_PROJECTS} projects here.`
+              : `Free plan: ${remainingProjectSlots} of ${MAX_PROJECTS} project slot${remainingProjectSlots === 1 ? '' : 's'} remaining.`}
+          </p>
         </section>
+
+        {isManualImportOpen ? (
+          <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+                  Manual Import
+                </p>
+                <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                  Add a local project by path
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  Enter the local project path, optionally rename the card, and
+                  choose the programming languages you want displayed. Free plan: You can
+                  only import {MAX_PROJECTS} projects here.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsManualImportOpen(false)
+                  resetProjectDraft()
+                }}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-slate-500 transition hover:bg-gray-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                aria-label="Close manual import"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form className="mt-6 grid gap-4" onSubmit={handleManualImportSubmit}>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="grid gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                    Project name
+                  </span>
+                  <input
+                    type="text"
+                    value={projectDraft.displayName}
+                    onChange={(event) =>
+                      setProjectDraft((currentDraft) => ({
+                        ...currentDraft,
+                        displayName: event.target.value,
+                      }))
+                    }
+                    placeholder="Optional, ProMan will use the folder name if blank"
+                    className="rounded-2xl border border-gray-200 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                  />
+                </label>
+
+                <label className="grid gap-2 md:col-span-1">
+                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                    Local project path
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={projectDraft.absolutePath}
+                    onChange={(event) =>
+                      setProjectDraft((currentDraft) => ({
+                        ...currentDraft,
+                        absolutePath: event.target.value,
+                      }))
+                    }
+                    placeholder="/Users/..."
+                    className="rounded-2xl border border-gray-200 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                  Programming languages
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  {MANUAL_LANGUAGE_OPTIONS.map((language) => {
+                    const isSelected =
+                      projectDraft.languagesList.includes(language)
+
+                    return (
+                      <button
+                        key={language}
+                        type="button"
+                        onClick={() => handleLanguageToggle(language)}
+                        className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                          isSelected
+                            ? 'bg-blue-600 text-white'
+                            : 'border border-gray-200 bg-white text-slate-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        {language}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  The project card will show these as a language list. No file
+                  scanning or percentage breakdown will be generated.
+                </p>
+                <p className="text-sm font-medium text-blue-700 dark:text-blue-200">
+                  {`${projects.length}/${MAX_PROJECTS} projects used.`}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsManualImportOpen(false)
+                    resetProjectDraft()
+                  }}
+                  className="rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={manualImportState.active || hasReachedProjectLimit}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-80"
+                >
+                  {manualImportState.active ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FolderPlus className="h-4 w-4" />
+                  )}
+                  {manualImportState.active
+                    ? 'Saving project...'
+                    : hasReachedProjectLimit
+                      ? 'Project limit reached'
+                      : 'Add project'}
+                </button>
+              </div>
+            </form>
+          </section>
+        ) : null}
 
         <section className="grid gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <SearchBar
@@ -353,15 +531,6 @@ export default function DashboardPage() {
           />
         </section>
 
-        <input
-          ref={zipImportInputRef}
-          type="file"
-          accept=".zip,application/zip"
-          disabled={zipImportState.active}
-          onChange={handleZipImportChange}
-          className="hidden"
-        />
-
         {projectsLoading ? (
           <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 6 }).map((_, index) => (
@@ -379,21 +548,26 @@ export default function DashboardPage() {
               Bring your first local project into ProMan.
             </h2>
             <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
-              Upload a project zip archive, then set the correct local folder
-              path so your IDE shortcuts open the right workspace.
+              Add your first project manually by saving its local path and the
+              programming languages you want shown on the card. Free plan: You can only
+              import {MAX_PROJECTS} projects here.
             </p>
             <button
               type="button"
-              disabled={zipImportState.active}
-              onClick={() => zipImportInputRef.current?.click()}
+              disabled={manualImportState.active || hasReachedProjectLimit}
+              onClick={openManualImport}
               className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-80"
             >
-              {zipImportState.active ? (
+              {manualImportState.active ? (
                 <LoaderCircle className="h-4 w-4 animate-spin" />
               ) : (
-                <Archive className="h-4 w-4" />
+                <FolderPlus className="h-4 w-4" />
               )}
-              {zipImportState.active ? 'Importing zip...' : 'Upload zip archive'}
+              {manualImportState.active
+                ? 'Adding project...'
+                : hasReachedProjectLimit
+                  ? 'Project limit reached'
+                  : 'Add your first project'}
             </button>
           </section>
         ) : null}
@@ -427,7 +601,6 @@ export default function DashboardPage() {
                   key={project.id}
                   project={project}
                   onDelete={handleDeleteProject}
-                  onUpdate={() => {}}
                   onTagClick={setFilterTag}
                   addToast={addToast}
                 />
@@ -453,7 +626,6 @@ export default function DashboardPage() {
                   key={project.id}
                   project={project}
                   onDelete={handleDeleteProject}
-                  onUpdate={() => {}}
                   onTagClick={setFilterTag}
                   addToast={addToast}
                 />
@@ -463,7 +635,7 @@ export default function DashboardPage() {
         ) : null}
       </main>
 
-      {zipImportState.active ? (
+      {manualImportState.active ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/50 px-4">
           <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center gap-4">
@@ -472,16 +644,16 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
-                  Importing Zip
+                  Adding Project
                 </p>
                 <h2 className="mt-1 text-xl font-bold text-slate-900 dark:text-white">
-                  {zipImportState.message}
+                  {manualImportState.message}
                 </h2>
               </div>
             </div>
             <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
-              ProMan is reading your archive, counting lines, and saving the new
-              project card. Keep this tab open for a moment.
+              ProMan is saving the new project card and preparing it for the
+              dashboard. Keep this tab open for a moment.
             </p>
           </div>
         </div>

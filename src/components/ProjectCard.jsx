@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   AlertTriangle,
   Bookmark,
+  Copy,
   FolderOpen,
   MoreVertical,
   StickyNote,
@@ -10,10 +11,13 @@ import { Timestamp, doc, updateDoc } from 'firebase/firestore'
 import { auth, db } from '../firebase'
 import { EDITORS } from '../constants/editorSchemes'
 import {
-  formatLines,
   normalizeProjectPath,
   formatRelativeTime,
 } from '../utils/formatters'
+import {
+  getPrimaryProjectLanguage,
+  getProjectLanguages,
+} from '../utils/projectLanguages'
 import ConfirmDialog from './ConfirmDialog'
 import LanguageBadge from './LanguageBadge'
 import LanguageBar from './LanguageBar'
@@ -35,10 +39,49 @@ function arraysMatch(left = [], right = []) {
   return JSON.stringify(left) === JSON.stringify(right)
 }
 
+function openEditorInNewBrowserContext(url) {
+  const link = document.createElement('a')
+  link.href = url
+  link.target = '_blank'
+  link.rel = 'noopener noreferrer'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+function getEditorCommandName(editor) {
+  return editor.scheme === 'cursor://file/' ? 'cursor' : 'code'
+}
+
+function getOperatingSystem() {
+  const platform =
+    navigator.userAgentData?.platform ||
+    navigator.platform ||
+    navigator.userAgent ||
+    ''
+
+  return /win/i.test(platform) ? 'windows' : 'posix'
+}
+
+function getOperatingSystemLabel(operatingSystem) {
+  return operatingSystem === 'windows' ? 'Windows' : 'macOS/Linux'
+}
+
+function quoteCommandPath(path, operatingSystem) {
+  if (operatingSystem === 'windows') {
+    return `"${path.replace(/"/g, '""')}"`
+  }
+
+  return `"${path.replace(/(["\\$`])/g, '\\$1')}"`
+}
+
+function getNewWindowCommand(editor, targetPath, operatingSystem) {
+  return `${getEditorCommandName(editor)} --new-window ${quoteCommandPath(targetPath, operatingSystem)}`
+}
+
 export default function ProjectCard({
   project,
   onDelete,
-  onUpdate,
   onTagClick,
   addToast,
 }) {
@@ -53,6 +96,8 @@ export default function ProjectCard({
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const menuRef = useRef(null)
+  const operatingSystem = getOperatingSystem()
+  const operatingSystemLabel = getOperatingSystemLabel(operatingSystem)
 
   useEffect(() => {
     setNameDraft(project.displayName ?? 'Untitled project')
@@ -108,7 +153,6 @@ export default function ProjectCard({
         : patch
 
       await updateDoc(doc(db, 'users', uid, 'projects', project.id), nextPatch)
-      onUpdate?.({ id: project.id, ...nextPatch })
 
       if (successMessage) {
         addToast(successMessage, 'success')
@@ -203,7 +247,7 @@ export default function ProjectCard({
     }
 
     try {
-      window.open(`${editor.scheme}${encodeURI(targetPath)}`, '_self')
+      openEditorInNewBrowserContext(`${editor.scheme}${encodeURI(targetPath)}`)
 
       await saveProjectUpdate(
         {
@@ -211,13 +255,40 @@ export default function ProjectCard({
           isBroken: false,
         },
         {
-          successMessage: `Sent ${project.displayName} to ${editor.label.replace('Open in ', '')}.`,
+          successMessage: `Sent ${project.displayName} to ${editor.label.replace('Open in ', '')}. If your editor reuses the current window, use the new-window command in the menu.`,
           errorMessage: 'Unable to update the last opened timestamp.',
           touchUpdatedAt: false,
         },
       )
     } catch {
       addToast('Unable to open that editor right now.', 'error')
+    } finally {
+      setIsMenuOpen(false)
+    }
+  }
+
+  async function handleCopyNewWindowCommand(editor) {
+    const targetPath = normalizeProjectPath(project.absolutePath)
+
+    if (project.isBroken || !targetPath) {
+      setIsEditingPath(true)
+      addToast(
+        'Set the correct local project path before copying a launch command.',
+        'info',
+      )
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(
+        getNewWindowCommand(editor, targetPath, operatingSystem),
+      )
+      addToast(
+        `${editor.label.replace('Open in ', '')} ${operatingSystemLabel}-compatible new-window command copied to clipboard.`,
+        'success',
+      )
+    } catch {
+      addToast('Unable to copy the launch command right now.', 'error')
     } finally {
       setIsMenuOpen(false)
     }
@@ -236,7 +307,6 @@ export default function ProjectCard({
     await saveProjectUpdate(
       {
         absolutePath: nextPath,
-        sourceType: nextPath ? 'manual' : project.sourceType ?? 'manual',
         isBroken: !nextPath,
       },
       {
@@ -257,7 +327,7 @@ export default function ProjectCard({
     <>
       <article className="relative flex h-full flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-start justify-between gap-3">
-          <LanguageBadge language={project.primaryLanguage} />
+          <LanguageBadge language={getPrimaryProjectLanguage(project)} />
 
           <div className="flex items-center gap-2">
             <button
@@ -299,7 +369,7 @@ export default function ProjectCard({
               </button>
 
               {isMenuOpen && (
-                <div className="absolute right-0 top-12 z-20 w-56 rounded-2xl border border-gray-100 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-slate-950">
+                <div className="absolute right-0 top-12 z-20 max-h-72 w-56 overflow-y-auto rounded-2xl border border-gray-100 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-slate-950">
                   <button
                     type="button"
                     onClick={() => {
@@ -331,14 +401,24 @@ export default function ProjectCard({
                     Edit project path
                   </button>
                   {EDITORS.map((editor) => (
-                    <button
-                      key={editor.scheme}
-                      type="button"
-                      onClick={() => handleOpenEditor(editor)}
-                      className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-                    >
-                      {editor.label}
-                    </button>
+                    <div key={editor.scheme} className="grid gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditor(editor)}
+                        className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                      >
+                        {editor.label}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyNewWindowCommand(editor)}
+                        className="inline-flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                        title={`Copy a ${operatingSystemLabel}-compatible command`}
+                      >
+                        <Copy className="h-4 w-4" />
+                        {`Copy ${editor.label.replace('Open in ', '')} new-window command`}
+                      </button>
+                    </div>
                   ))}
                   <button
                     type="button"
@@ -406,7 +486,7 @@ export default function ProjectCard({
                     setPathDraft(project.absolutePath ?? '')
                   }
                 }}
-                placeholder="/Users/moladin/Documents/Personal-Project/proman or code /Users/..."
+                placeholder="/Users/... or code /Users/..."
                 className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 dark:border-blue-500/40 dark:bg-slate-800 dark:text-white"
               />
               <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -478,15 +558,20 @@ export default function ProjectCard({
           </div>
         )}
 
-        <LanguageBar languages={project.languages} />
+        <LanguageBar languages={project.languagesList ?? project.languages} />
 
         <div className="grid gap-1 text-sm text-slate-500 dark:text-slate-400">
-          <p>{formatLines(project.totalLines ?? 0)}</p>
           <p>{`Updated ${formatRelativeTime(project.lastUpdatedAt)}`}</p>
           {project.lastOpenedAt ? (
             <p>{`Last opened ${formatRelativeTime(project.lastOpenedAt)}`}</p>
           ) : null}
         </div>
+
+        {!getProjectLanguages(project).length ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            No programming languages selected yet.
+          </p>
+        ) : null}
 
         {!!project.tags?.length && (
           <div className="flex flex-wrap gap-2">

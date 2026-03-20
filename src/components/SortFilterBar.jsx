@@ -2,7 +2,6 @@ const SORT_OPTIONS = [
   { label: 'Name', value: 'name' },
   { label: 'Last updated', value: 'lastUpdated' },
   { label: 'Last opened', value: 'lastOpened' },
-  { label: 'Total lines', value: 'totalLines' },
   { label: 'Language', value: 'language' },
 ]
 

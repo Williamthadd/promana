@@ -2,7 +2,7 @@ const RELATIVE_TIME_FORMATTER = new Intl.RelativeTimeFormat('en', {
   numeric: 'auto',
 })
 
-export function coerceToDate(value) {
+function coerceToDate(value) {
   if (!value) {
     return null
   }
@@ -21,10 +21,6 @@ export function coerceToDate(value) {
 
 export function getTimeValue(value) {
   return coerceToDate(value)?.getTime() ?? 0
-}
-
-export function formatLines(lineCount) {
-  return `${new Intl.NumberFormat('en-US').format(lineCount ?? 0)} total lines of code`
 }
 
 export function formatRelativeTime(value) {
@@ -62,17 +58,6 @@ export function formatRelativeTime(value) {
   return RELATIVE_TIME_FORMATTER.format(diffInSeconds, 'second')
 }
 
-export function formatAbsolutePath(file) {
-  if (!file?.webkitRelativePath) {
-    return file?.name ?? 'unknown-project'
-  }
-
-  // Browsers do not expose the real absolute path for imported folders.
-  // The root folder name is the only reliable project identifier we can store.
-  const [folderName] = file.webkitRelativePath.split('/')
-  return folderName || file.name || 'unknown-project'
-}
-
 export function normalizeProjectPath(value) {
   let normalizedValue = (value ?? '').trim()
 
@@ -80,7 +65,10 @@ export function normalizeProjectPath(value) {
     return ''
   }
 
-  normalizedValue = normalizedValue.replace(/^(?:code|cursor)\s+/i, '')
+  normalizedValue = normalizedValue.replace(
+    /^(?:code|cursor)(?:\s+(?:-n|--new-window|-r|--reuse-window))*\s+/i,
+    '',
+  )
   normalizedValue = normalizedValue.replace(/^vscode:\/\/file\/+/i, '/')
   normalizedValue = normalizedValue.replace(/^cursor:\/\/file\/+/i, '/')
   normalizedValue = normalizedValue.replace(/^["']|["']$/g, '')

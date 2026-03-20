@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, LogOut, Moon, Sun, UserRound, X } from 'lucide-react'
+import { ChevronDown, LogOut, Moon, Sun, X } from 'lucide-react'
 import { signOut } from 'firebase/auth'
 import { Link, useNavigate } from 'react-router-dom'
 import { auth } from '../firebase'
+import BrandMark from './BrandMark'
+import UserAvatar from './UserAvatar'
 
 export default function Header({ user, darkMode, onToggleDark, addToast }) {
   const [isOpen, setIsOpen] = useState(false)
@@ -42,9 +44,12 @@ export default function Header({ user, darkMode, onToggleDark, addToast }) {
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         <Link
           to="/dashboard"
-          className="text-xl font-bold tracking-tight text-slate-900 dark:text-white"
+          className="inline-flex items-center"
         >
-          ProMan
+          <BrandMark
+            logoClassName="h-10 w-10 rounded-2xl object-cover shadow-sm"
+            titleClassName="text-xl font-bold tracking-tight text-slate-900 dark:text-white"
+          />
         </Link>
 
         <div className="flex items-center gap-3">
@@ -67,17 +72,12 @@ export default function Header({ user, darkMode, onToggleDark, addToast }) {
               onClick={() => setIsOpen((current) => !current)}
               className="flex max-w-[18rem] items-center gap-3 rounded-full border border-white/70 bg-white px-3 py-2 text-left shadow-sm transition hover:-translate-y-0.5 dark:border-slate-800 dark:bg-slate-900"
             >
-              {user?.photoURL ? (
-                <img
-                  src={user.photoURL}
-                  alt={user.email ?? 'User avatar'}
-                  className="h-10 w-10 rounded-full object-cover"
-                />
-              ) : (
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-slate-800 dark:text-blue-200">
-                  <UserRound className="h-5 w-5" />
-                </span>
-              )}
+              <UserAvatar
+                user={user}
+                imageClassName="h-10 w-10 rounded-full object-cover"
+                fallbackClassName="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-slate-800 dark:text-blue-200"
+                iconClassName="h-5 w-5"
+              />
 
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold text-slate-900 dark:text-white">
@@ -94,17 +94,12 @@ export default function Header({ user, darkMode, onToggleDark, addToast }) {
             {isOpen && (
               <div className="absolute right-0 mt-3 w-72 rounded-2xl border border-gray-100 bg-white p-4 shadow-xl dark:border-slate-800 dark:bg-slate-900">
                 <div className="flex items-center gap-3">
-                  {user?.photoURL ? (
-                    <img
-                      src={user.photoURL}
-                      alt={user.email ?? 'User avatar'}
-                      className="h-14 w-14 rounded-full object-cover"
-                    />
-                  ) : (
-                    <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-slate-800 dark:text-blue-200">
-                      <UserRound className="h-6 w-6" />
-                    </span>
-                  )}
+                  <UserAvatar
+                    user={user}
+                    imageClassName="h-14 w-14 rounded-full object-cover"
+                    fallbackClassName="inline-flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-slate-800 dark:text-blue-200"
+                    iconClassName="h-6 w-6"
+                  />
 
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">

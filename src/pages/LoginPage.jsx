@@ -8,6 +8,7 @@ import {
 import { addDoc, collection, Timestamp } from 'firebase/firestore'
 import { LoaderCircle } from 'lucide-react'
 import { Navigate, useNavigate } from 'react-router-dom'
+import BrandMark from '../components/BrandMark'
 import { auth, db } from '../firebase'
 import useAuth from '../hooks/useAuth'
 import fetchIpAddress from '../utils/ipFetcher'
@@ -184,9 +185,11 @@ export default function LoginPage() {
       <div className="absolute -right-20 bottom-10 h-72 w-72 rounded-full bg-blue-300/40 blur-3xl dark:bg-cyan-500/10" />
 
       <div className="relative mx-auto flex min-h-[calc(100vh-6rem)] max-w-md flex-col items-center justify-center">
-        <h1 className="mb-6 text-4xl font-black tracking-tight text-slate-900 dark:text-white">
-          ProMan
-        </h1>
+        <BrandMark
+          className="mb-6"
+          logoClassName="h-20 w-20 rounded-[1.75rem] object-cover shadow-xl ring-1 ring-black/5 dark:ring-white/10"
+          titleClassName="text-4xl font-black tracking-tight text-slate-900 dark:text-white"
+        />
 
         <div className="w-full rounded-2xl border border-gray-100 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-6">
