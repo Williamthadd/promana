@@ -9,6 +9,7 @@ import { addDoc, collection, Timestamp } from 'firebase/firestore'
 import { LoaderCircle } from 'lucide-react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import BrandMark from '../components/BrandMark'
+import MadeByFooter from '../components/MadeByFooter'
 import { auth, db } from '../firebase'
 import useAuth from '../hooks/useAuth'
 import reportAuthFailure from '../utils/authFailureReporter'
@@ -311,6 +312,8 @@ export default function LoginPage() {
             </button>
           </div>
         </div>
+
+        <MadeByFooter className="mt-6" />
       </div>
     </div>
   )

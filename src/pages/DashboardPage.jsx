@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { addDoc, collection, deleteDoc, doc, Timestamp } from 'firebase/firestore'
 import { FolderPlus, LoaderCircle, SearchX, X } from 'lucide-react'
 import Header from '../components/Header'
+import MadeByFooter from '../components/MadeByFooter'
 import ProjectCard from '../components/ProjectCard'
 import SearchBar from '../components/SearchBar'
 import SkeletonCard from '../components/SkeletonCard'
@@ -659,6 +660,7 @@ export default function DashboardPage() {
         </div>
       ) : null}
 
+      <MadeByFooter className="px-4 pb-6 sm:px-6 lg:px-8" />
       <ToastContainer toasts={toasts} onClose={removeToast} />
     </div>
   )
