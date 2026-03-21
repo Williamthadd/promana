@@ -103,11 +103,18 @@ export default function ProjectCard({
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [isEditorPickerOpen, setIsEditorPickerOpen] = useState(false)
+  const [notesMenuState, setNotesMenuState] = useState({
+    isOpen: false,
+    x: 0,
+    y: 0,
+    selectedText: '',
+  })
   const [selectedEditorScheme, setSelectedEditorScheme] = useState(
     EDITORS[0]?.scheme ?? '',
   )
   const menuRef = useRef(null)
   const editorPickerRef = useRef(null)
+  const notesMenuRef = useRef(null)
   const operatingSystem = getOperatingSystem()
   const operatingSystemLabel = getOperatingSystemLabel(operatingSystem)
   const selectedEditor =
@@ -134,7 +141,7 @@ export default function ProjectCard({
   }, [project.tags])
 
   useEffect(() => {
-    if (!isMenuOpen && !isEditorPickerOpen) {
+    if (!isMenuOpen && !isEditorPickerOpen && !notesMenuState.isOpen) {
       return undefined
     }
 
@@ -149,13 +156,20 @@ export default function ProjectCard({
       ) {
         setIsEditorPickerOpen(false)
       }
+
+      if (notesMenuRef.current && !notesMenuRef.current.contains(event.target)) {
+        setNotesMenuState((currentState) => ({
+          ...currentState,
+          isOpen: false,
+        }))
+      }
     }
 
     document.addEventListener('mousedown', handlePointerDown)
     return () => {
       document.removeEventListener('mousedown', handlePointerDown)
     }
-  }, [isEditorPickerOpen, isMenuOpen])
+  }, [isEditorPickerOpen, isMenuOpen, notesMenuState.isOpen])
 
   async function saveProjectUpdate(
     patch,
@@ -224,6 +238,68 @@ export default function ProjectCard({
         successMessage: nextNotes ? 'Notes updated.' : 'Notes cleared.',
       },
     )
+  }
+
+  function openNotesContextMenu(event) {
+    event.preventDefault()
+
+    const nextX = Math.min(event.clientX, window.innerWidth - 220)
+    const nextY = Math.min(event.clientY, window.innerHeight - 120)
+    const selectedText = window.getSelection?.().toString().trim() ?? ''
+
+    setNotesMenuState({
+      isOpen: true,
+      x: Math.max(12, nextX),
+      y: Math.max(12, nextY),
+      selectedText,
+    })
+  }
+
+  function handleNotesClick() {
+    addToast(
+      project.notes
+        ? 'Right-click the notes area and choose Edit Notes to update this note.'
+        : 'Right-click the notes button and choose Edit Notes to add a note.',
+      'info',
+    )
+  }
+
+  function startEditingNotes() {
+    setNotesMenuState((currentState) => ({
+      ...currentState,
+      isOpen: false,
+    }))
+    setIsNotesOpen(true)
+  }
+
+  async function handleCopyNotesText() {
+    const nextText = notesMenuState.selectedText || (project.notes ?? '')
+
+    if (!nextText) {
+      addToast('There is no notes text to copy yet.', 'info')
+      setNotesMenuState((currentState) => ({
+        ...currentState,
+        isOpen: false,
+      }))
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(nextText)
+      addToast(
+        notesMenuState.selectedText
+          ? 'Selected notes text copied.'
+          : 'Notes text copied.',
+        'success',
+      )
+    } catch {
+      addToast('Unable to copy the notes text right now.', 'error')
+    } finally {
+      setNotesMenuState((currentState) => ({
+        ...currentState,
+        isOpen: false,
+      }))
+    }
   }
 
   async function commitTags() {
@@ -422,13 +498,11 @@ export default function ProjectCard({
 
             <button
               type="button"
-              onClick={() => {
-                setIsTagEditorOpen(false)
-                setIsMenuOpen(false)
-                setIsNotesOpen((current) => !current)
-              }}
+              onClick={handleNotesClick}
+              onContextMenu={openNotesContextMenu}
               className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-blue-500/40 dark:hover:bg-blue-500/10 dark:hover:text-blue-200"
-              aria-label="Edit notes"
+              aria-label="Notes actions"
+              title="Right-click to edit notes"
             >
               <StickyNote
                 className="h-4.5 w-4.5"
@@ -595,14 +669,18 @@ export default function ProjectCard({
               </button>
 
               {project.notes ? (
-                <button
-                  type="button"
-                  onClick={() => setIsNotesOpen(true)}
-                  className="line-clamp-3 text-left text-sm leading-6 text-slate-600 transition hover:text-blue-700 dark:text-slate-300 dark:hover:text-blue-200"
+                <div
+                  onContextMenu={openNotesContextMenu}
+                  className="mt-2 cursor-text select-text overflow-hidden rounded-2xl border border-blue-200 bg-blue-50 px-3 py-3 text-left text-sm leading-6 text-slate-700 transition hover:border-blue-300 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-slate-200 dark:hover:border-blue-400/40"
                   title={project.notes}
                 >
-                  {project.notes}
-                </button>
+                  <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+                    Notes
+                  </span>
+                  <span className="line-clamp-3 block whitespace-pre-wrap break-words">
+                    {project.notes}
+                  </span>
+                </div>
               ) : null}
 
               {isEditingRepository ? (
@@ -699,6 +777,12 @@ export default function ProjectCard({
             value={notesDraft}
             onChange={(event) => setNotesDraft(event.target.value)}
             onBlur={commitNotes}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                setIsNotesOpen(false)
+                setNotesDraft(project.notes ?? '')
+              }
+            }}
             placeholder="Capture project notes, repo reminders, or local setup steps..."
             className="resize-none rounded-2xl border border-gray-200 px-3 py-3 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
           />
@@ -812,6 +896,31 @@ export default function ProjectCard({
           )}
         </div>
       </article>
+
+      {notesMenuState.isOpen ? (
+        <div
+          ref={notesMenuRef}
+          className="fixed z-40 min-w-44 rounded-2xl border border-gray-100 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-slate-950"
+          style={{ left: notesMenuState.x, top: notesMenuState.y }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              void handleCopyNotesText()
+            }}
+            className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            {notesMenuState.selectedText ? 'Copy selected text' : 'Copy notes text'}
+          </button>
+          <button
+            type="button"
+            onClick={startEditingNotes}
+            className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Edit Notes
+          </button>
+        </div>
+      ) : null}
 
       <ConfirmDialog
         open={isConfirmOpen}
