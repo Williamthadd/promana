@@ -66,11 +66,12 @@ export function normalizeProjectPath(value) {
   }
 
   normalizedValue = normalizedValue.replace(
-    /^(?:code|cursor)(?:\s+(?:-n|--new-window|-r|--reuse-window))*\s+/i,
+    /^(?:code|cursor|antigravity)(?:\s+(?:-n|--new-window|-r|--reuse-window))*\s+/i,
     '',
   )
   normalizedValue = normalizedValue.replace(/^vscode:\/\/file\/+/i, '/')
   normalizedValue = normalizedValue.replace(/^cursor:\/\/file\/+/i, '/')
+  normalizedValue = normalizedValue.replace(/^antigravity:\/\/file\/+/i, '/')
   normalizedValue = normalizedValue.replace(/^["']|["']$/g, '')
 
   return normalizedValue.trim()

@@ -57,7 +57,13 @@ function openEditorInNewBrowserContext(url) {
 }
 
 function getEditorCommandName(editor) {
-  return editor.scheme === 'cursor://file/' ? 'cursor' : 'code'
+  if (editor.scheme === 'cursor://file/') {
+    return 'cursor'
+  } else if (editor.scheme === 'antigravity://file/') {
+    return 'antigravity'
+  } else {
+    return 'code'
+  }
 }
 
 function getOperatingSystem() {
@@ -106,6 +112,8 @@ export default function ProjectCard({
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [isEditorPickerOpen, setIsEditorPickerOpen] = useState(false)
+  const [isNotesExpanded, setIsNotesExpanded] = useState(false)
+  const [hasExpandableNotes, setHasExpandableNotes] = useState(false)
   const [notesMenuState, setNotesMenuState] = useState({
     isOpen: false,
     x: 0,
@@ -118,6 +126,7 @@ export default function ProjectCard({
   const menuRef = useRef(null)
   const editorPickerRef = useRef(null)
   const notesMenuRef = useRef(null)
+  const notesPreviewRef = useRef(null)
   const operatingSystem = getOperatingSystem()
   const operatingSystemLabel = getOperatingSystemLabel(operatingSystem)
   const selectedEditor =
@@ -143,6 +152,25 @@ export default function ProjectCard({
   useEffect(() => {
     setTagDraft((project.tags ?? []).join(', '))
   }, [project.tags])
+
+  useEffect(() => {
+    setIsNotesExpanded(false)
+  }, [activeEnvironment, environmentData.notes, project.id])
+
+  useEffect(() => {
+    if (!environmentData.notes) {
+      setHasExpandableNotes(false)
+      return
+    }
+
+    const previewElement = notesPreviewRef.current
+
+    if (!previewElement) {
+      return
+    }
+
+    setHasExpandableNotes(previewElement.scrollHeight > previewElement.clientHeight + 1)
+  }, [environmentData.notes, activeEnvironment, isNotesExpanded])
 
   useEffect(() => {
     if (!isMenuOpen && !isEditorPickerOpen && !notesMenuState.isOpen) {
@@ -739,9 +767,25 @@ export default function ProjectCard({
                   <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
                     {`${activeEnvironment} Notes`}
                   </span>
-                  <span className="line-clamp-3 block whitespace-pre-wrap break-words">
+                  <span
+                    ref={notesPreviewRef}
+                    className={`block whitespace-pre-wrap break-words ${
+                      isNotesExpanded ? '' : 'max-h-[4.5rem] overflow-hidden'
+                    }`}
+                  >
                     {environmentData.notes}
                   </span>
+                  {hasExpandableNotes ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setIsNotesExpanded((currentState) => !currentState)
+                      }
+                      className="mt-3 text-xs font-semibold text-blue-700 transition hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
+                    >
+                      {isNotesExpanded ? 'View less' : 'View more'}
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
 
