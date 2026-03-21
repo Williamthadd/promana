@@ -67,7 +67,7 @@ function getImportErrorMessage(error) {
   return 'Unable to add that project right now.'
 }
 
-const MAX_PROJECTS = 15
+const MAX_PROJECTS = 20
 const MANUAL_LANGUAGE_OPTIONS = Object.keys(LANGUAGE_COLORS).filter(
   (language) => language !== 'Other',
 )
