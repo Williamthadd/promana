@@ -333,7 +333,7 @@ export default function DashboardPage() {
                 Workspace dashboard
               </p>
               <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
-                Open local projects faster than your dock can keep up.
+                Open local coding projects faster than your dock can keep up.
               </h1>
               <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
                 Add your local projects manually, keep paths editable, and save
