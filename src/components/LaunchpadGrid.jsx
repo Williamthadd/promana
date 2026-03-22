@@ -39,8 +39,8 @@ export default function LaunchpadGrid({
 
   if (loading) {
     return (
-      <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, index) => (
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, index) => (
           <LaunchpadSkeletonCard key={`launchpad-skeleton-${index}`} />
         ))}
       </section>
@@ -49,14 +49,14 @@ export default function LaunchpadGrid({
 
   if (!items.length) {
     return (
-      <section className="rounded-2xl border border-dashed border-blue-200 bg-white p-10 text-center shadow-sm dark:border-blue-500/20 dark:bg-slate-900">
-        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-blue-50 text-3xl dark:bg-blue-500/10">
+      <section className="rounded-2xl border border-dashed border-blue-200 bg-white p-8 text-center shadow-sm dark:border-blue-500/20 dark:bg-slate-900">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-blue-50 text-3xl dark:bg-blue-500/10">
           🌐
         </div>
-        <h2 className="mt-4 text-2xl font-bold text-slate-900 dark:text-white">
+        <h2 className="mt-4 text-xl font-bold text-slate-900 dark:text-white">
           No shortcuts yet
         </h2>
-        <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
           Add your first web platform above.
         </p>
       </section>
@@ -65,7 +65,7 @@ export default function LaunchpadGrid({
 
   if (!visibleItems.length) {
     return (
-      <section className="rounded-2xl border border-dashed border-gray-200 bg-white p-10 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <section className="rounded-2xl border border-dashed border-gray-200 bg-white p-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <SearchX className="mx-auto h-10 w-10 text-slate-400 dark:text-slate-500" />
         <p className="mt-4 text-lg font-semibold text-slate-900 dark:text-white">
           No shortcuts match your search.
@@ -75,13 +75,13 @@ export default function LaunchpadGrid({
   }
 
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-6">
       {pinnedItems.length ? (
-        <section className="grid gap-4">
+        <section className="grid gap-3">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
             📌 Pinned
           </p>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {pinnedItems.map((item) => (
               <LaunchpadCard
                 key={item.id}
@@ -97,17 +97,24 @@ export default function LaunchpadGrid({
       ) : null}
 
       {regularItems.length ? (
-        <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {regularItems.map((item) => (
-            <LaunchpadCard
-              key={item.id}
-              item={item}
-              onDelete={onDelete}
-              onUpdate={onUpdate}
-              onTogglePin={onTogglePin}
-              addToast={addToast}
-            />
-          ))}
+        <section className="grid gap-3">
+          {pinnedItems.length ? (
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+              All shortcuts
+            </p>
+          ) : null}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {regularItems.map((item) => (
+              <LaunchpadCard
+                key={item.id}
+                item={item}
+                onDelete={onDelete}
+                onUpdate={onUpdate}
+                onTogglePin={onTogglePin}
+                addToast={addToast}
+              />
+            ))}
+          </div>
         </section>
       ) : null}
     </div>
