@@ -704,7 +704,7 @@ export default function DashboardPage() {
                         displayName: event.target.value,
                       }))
                     }
-                    placeholder="Optional, ProMan will use the folder name if blank"
+                    placeholder="Optional, ProMana will use the folder name if blank"
                     className="rounded-2xl border border-gray-200 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
                   />
                 </label>
@@ -892,7 +892,7 @@ export default function DashboardPage() {
                   Nothing imported yet
                 </p>
                 <h2 className="mt-3 text-2xl font-bold text-slate-900 dark:text-white">
-                  Bring your first local project into ProMan.
+                  Bring your first local project into ProMana.
                 </h2>
                 <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
                   Add your first project manually by saving its local path and the
@@ -1049,7 +1049,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
-              ProMan is saving the new project card and preparing it for the
+              ProMana is saving the new project card and preparing it for the
               dashboard. Keep this tab open for a moment.
             </p>
           </div>

@@ -970,7 +970,7 @@ export default function ProjectCard({
               />
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Paste the local folder path you want VS Code or Cursor or Antigravity to open
-                for the {activeEnvironment} environment. ProMan will clean
+                for the {activeEnvironment} environment. ProMana will clean
                 `code /Users/...` into the stored path
                 automatically.
               </p>
@@ -1131,7 +1131,7 @@ export default function ProjectCard({
             />
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Separate multiple languages with commas. You can add custom
-              languages even if they are not in ProMan&apos;s default list.
+              languages even if they are not in ProMana&apos;s default list.
             </p>
           </div>
         )}
@@ -1293,7 +1293,7 @@ export default function ProjectCard({
       <ConfirmDialog
         open={isConfirmOpen}
         title="Remove Project"
-        message={`Are you sure you want to remove ${project.displayName}? This removes the saved project entry from ProMan.`}
+        message={`Are you sure you want to remove ${project.displayName}? This removes the saved project entry from ProMana.`}
         onConfirm={handleDeleteConfirm}
         onCancel={() => setIsConfirmOpen(false)}
       />
