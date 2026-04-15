@@ -7,10 +7,12 @@ import {
   Timestamp,
   updateDoc,
 } from 'firebase/firestore'
-import { FolderPlus, LoaderCircle, SearchX, X } from 'lucide-react'
+import { FolderPlus, LoaderCircle, SearchX, StickyNote, X } from 'lucide-react'
 import AddLaunchpadModal from '../components/AddLaunchpadModal'
 import Header from '../components/Header'
 import LaunchpadGrid from '../components/LaunchpadGrid'
+import NoteModal from '../components/NoteModal'
+import NotesGrid from '../components/NotesGrid'
 import MadeByFooter from '../components/MadeByFooter'
 import ProjectCard from '../components/ProjectCard'
 import SearchBar from '../components/SearchBar'
@@ -22,11 +24,18 @@ import {
   getLaunchpadCategoryLabel,
   getLaunchpadCategoryOptions,
 } from '../constants/launchpadCategories'
+import {
+  NOTE_LANGUAGE_OPTIONS,
+  NOTE_TYPE_OPTIONS,
+  getNoteLanguageLabel,
+  getNoteTypeLabel,
+} from '../constants/noteOptions'
 import { DEFAULT_PROJECT_ENVIRONMENTS } from '../constants/projectEnvironments'
 import { auth, db } from '../firebase'
 import useAuth from '../hooks/useAuth'
 import useLightBackgroundColor from '../hooks/useLightBackgroundColor'
 import useLaunchpad from '../hooks/useLaunchpad'
+import useNotes from '../hooks/useNotes'
 import useProjects from '../hooks/useProjects'
 import useToast from '../hooks/useToast'
 import useUserLimits from '../hooks/useUserLimits'
@@ -116,6 +125,7 @@ export default function DashboardPage() {
     loading: launchpadLoading,
     error: launchpadError,
   } = useLaunchpad()
+  const { notes, loading: notesLoading, error: notesError } = useNotes(user?.uid)
   const {
     limits,
     loading: limitsLoading,
@@ -128,6 +138,10 @@ export default function DashboardPage() {
   const [search, setSearch] = useState('')
   const [launchpadSearch, setLaunchpadSearch] = useState('')
   const [launchpadFilterCategory, setLaunchpadFilterCategory] = useState('all')
+  const [notesSearch, setNotesSearch] = useState('')
+  const [notesFilterType, setNotesFilterType] = useState('all')
+  const [notesFilterLanguage, setNotesFilterLanguage] = useState('all')
+  const [notesFilterTag, setNotesFilterTag] = useState('all')
   const [sort, setSort] = useState('lastUpdated')
   const [filterLang, setFilterLang] = useState('all')
   const [filterTag, setFilterTag] = useState('all')
@@ -140,6 +154,9 @@ export default function DashboardPage() {
     message: '',
   })
   const [isAddLaunchpadOpen, setIsAddLaunchpadOpen] = useState(false)
+  const [isNoteModalOpen, setIsNoteModalOpen] = useState(false)
+  const [activeNote, setActiveNote] = useState(null)
+  const [isSavingNote, setIsSavingNote] = useState(false)
   const [projectDraft, setProjectDraft] = useState({
     displayName: '',
     absolutePath: '',
@@ -149,16 +166,21 @@ export default function DashboardPage() {
   })
   const searchInputRef = useRef(null)
   const launchpadSearchInputRef = useRef(null)
+  const notesSearchInputRef = useRef(null)
   const maxProjects = limits.maxProjects
   const maxWebsites = limits.maxWebsites
+  const maxNotes = limits.maxNotes
   const planLabel =
-    maxProjects > 20 && maxWebsites > 50 ? 'Pro plan' : 'Free plan'
+    maxProjects > 20 || maxWebsites > 50 || maxNotes > 100 ? 'Pro plan' : 'Free plan'
   const usedProjectCount = projects.length
   const usedWebsiteCount = launchpadItems.length
+  const usedNoteCount = notes.length
   const hasReachedProjectLimit = usedProjectCount >= maxProjects
   const hasReachedWebsiteLimit = usedWebsiteCount >= maxWebsites
+  const hasReachedNoteLimit = usedNoteCount >= maxNotes
   const remainingProjectSlots = Math.max(0, maxProjects - usedProjectCount)
   const remainingWebsiteSlots = Math.max(0, maxWebsites - usedWebsiteCount)
+  const remainingNoteSlots = Math.max(0, maxNotes - usedNoteCount)
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode)
@@ -184,6 +206,8 @@ export default function DashboardPage() {
       event.preventDefault()
       if (dashboardMode === 'launchpad') {
         launchpadSearchInputRef.current?.focus()
+      } else if (dashboardMode === 'notes') {
+        notesSearchInputRef.current?.focus()
       } else {
         searchInputRef.current?.focus()
       }
@@ -208,6 +232,12 @@ export default function DashboardPage() {
   }, [addToast, launchpadError])
 
   useEffect(() => {
+    if (notesError) {
+      addToast('Notes sync hit an issue. Please try refreshing.', 'error')
+    }
+  }, [addToast, notesError])
+
+  useEffect(() => {
     if (limitsError) {
       addToast('Account limits could not be loaded. Using default free-plan limits.', 'info')
     }
@@ -226,6 +256,13 @@ export default function DashboardPage() {
     }
   }, [hasReachedWebsiteLimit, isAddLaunchpadOpen])
 
+  useEffect(() => {
+    if (hasReachedNoteLimit && isNoteModalOpen && !activeNote?.id) {
+      setIsNoteModalOpen(false)
+      setActiveNote(null)
+    }
+  }, [activeNote?.id, hasReachedNoteLimit, isNoteModalOpen])
+
   const availableLangs = useMemo(
     () =>
       Array.from(
@@ -240,6 +277,22 @@ export default function DashboardPage() {
         new Set(projects.flatMap((project) => project.tags ?? []).filter(Boolean)),
       ).sort((left, right) => left.localeCompare(right)),
     [projects],
+  )
+
+  const availableNoteLanguages = useMemo(
+    () =>
+      Array.from(
+        new Set(notes.map((note) => note.language).filter(Boolean)),
+      ).sort((left, right) => left.localeCompare(right)),
+    [notes],
+  )
+
+  const availableNoteTags = useMemo(
+    () =>
+      Array.from(
+        new Set(notes.flatMap((note) => note.tags ?? []).filter(Boolean)),
+      ).sort((left, right) => left.localeCompare(right)),
+    [notes],
   )
 
   const launchpadCategoryOptions = useMemo(
@@ -346,6 +399,19 @@ export default function DashboardPage() {
     }
 
     setIsAddLaunchpadOpen(true)
+  }
+
+  function openNoteComposer(note = null) {
+    if (!note?.id && hasReachedNoteLimit) {
+      addToast(
+        `You can only save ${maxNotes} notes here. Remove one before adding another.`,
+        'error',
+      )
+      return
+    }
+
+    setActiveNote(note)
+    setIsNoteModalOpen(true)
   }
 
   async function handleManualImportSubmit(event) {
@@ -489,6 +555,91 @@ export default function DashboardPage() {
     addToast(item.isPinned ? 'Unpinned.' : 'Pinned to top.', 'success')
   }
 
+  async function handleSaveNote(noteDraft) {
+    if (!user) {
+      addToast('You need to be signed in to save notes.', 'error')
+      return
+    }
+
+    if (!noteDraft.content.trim()) {
+      addToast('Add note content before saving.', 'error')
+      return
+    }
+
+    if (!activeNote?.id && hasReachedNoteLimit) {
+      addToast(
+        `You can only save ${maxNotes} notes here. Remove one before adding another.`,
+        'error',
+      )
+      return
+    }
+
+    setIsSavingNote(true)
+
+    const title = noteDraft.title || getNoteTypeLabel(noteDraft.type)
+    const timestamp = Timestamp.now()
+    const payload = {
+      title,
+      type: noteDraft.type,
+      language: noteDraft.language,
+      tags: noteDraft.tags ?? [],
+      content: noteDraft.content.trimEnd(),
+      isPinned: activeNote?.isPinned ?? false,
+      lastUpdatedAt: timestamp,
+    }
+
+    try {
+      if (activeNote?.id) {
+        await updateDoc(doc(db, 'users', user.uid, 'notes', activeNote.id), payload)
+        addToast('Note updated.', 'success')
+      } else {
+        await addDoc(collection(db, 'users', user.uid, 'notes'), {
+          ...payload,
+          createdAt: timestamp,
+        })
+        addToast(`${title} saved to Notes.`, 'success')
+      }
+
+      setIsNoteModalOpen(false)
+      setActiveNote(null)
+    } catch {
+      addToast('Unable to save that note right now.', 'error')
+    } finally {
+      setIsSavingNote(false)
+    }
+  }
+
+  async function handleDeleteNote(note) {
+    if (!user) {
+      addToast('You need to be signed in to remove notes.', 'error')
+      return
+    }
+
+    try {
+      await deleteDoc(doc(db, 'users', user.uid, 'notes', note.id))
+      addToast('Note removed.', 'success')
+    } catch {
+      addToast('Unable to remove that note right now.', 'error')
+    }
+  }
+
+  async function handleToggleNotePin(note) {
+    if (!user) {
+      addToast('You need to be signed in to update notes.', 'error')
+      return
+    }
+
+    try {
+      await updateDoc(doc(db, 'users', user.uid, 'notes', note.id), {
+        isPinned: !note.isPinned,
+        lastUpdatedAt: Timestamp.now(),
+      })
+      addToast(note.isPinned ? 'Note unpinned.' : 'Note pinned to top.', 'success')
+    } catch {
+      addToast('Unable to update that note right now.', 'error')
+    }
+  }
+
   if (authLoading || limitsLoading) {
     return (
       <div
@@ -589,7 +740,7 @@ export default function DashboardPage() {
                   : `${planLabel}: ${usedProjectCount}/${maxProjects} projects used. ${remainingProjectSlots} slot${remainingProjectSlots === 1 ? '' : 's'} left.`}
               </p>
             </>
-          ) : (
+          ) : dashboardMode === 'launchpad' ? (
             <>
               <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-2xl">
@@ -628,7 +779,65 @@ export default function DashboardPage() {
               <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
                 {hasReachedWebsiteLimit
                   ? `${planLabel}: Website limit reached. Each account can only save ${maxWebsites} shortcuts here.`
-                  : `${planLabel}: ${usedWebsiteCount}/${maxWebsites} websites used. ${remainingWebsiteSlots} slot${remainingWebsiteSlots === 1 ? '' : 's'} left.`}
+                  : `${usedWebsiteCount}/${maxWebsites} websites used. ${remainingWebsiteSlots} slot${remainingWebsiteSlots === 1 ? '' : 's'} left.`}
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                <div className="max-w-2xl">
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+                    Workspace dashboard
+                  </p>
+                  <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                    Keep snippets, SQL, config blocks, and text notes one click away.
+                  </h1>
+                  <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                    Save reusable code, important queries, deployment config, and quick
+                    reference notes with a language label so every box stays readable.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[26rem]">
+                  <div className="rounded-2xl bg-blue-50 px-4 py-3 dark:bg-blue-500/10">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700 dark:text-blue-200">
+                      Notes
+                    </p>
+                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                      {usedNoteCount}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-inset ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                      Pinned
+                    </p>
+                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                      {notes.filter((note) => note.isPinned).length}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-inset ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                      Formats
+                    </p>
+                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                      {availableNoteLanguages.length}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={hasReachedNoteLimit}
+                    onClick={() => openNoteComposer()}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-80"
+                  >
+                    <StickyNote className="h-4 w-4" />
+                    {hasReachedNoteLimit ? 'Note limit reached' : 'Add note'}
+                  </button>
+                </div>
+              </div>
+              <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                {hasReachedNoteLimit
+                  ? `${planLabel}: Note limit reached. Each account can only save ${maxNotes} notes here.`
+                  : `${planLabel}: ${usedNoteCount}/${maxNotes} notes used. ${remainingNoteSlots} slot${remainingNoteSlots === 1 ? '' : 's'} left.`}
               </p>
             </>
           )}
@@ -656,6 +865,17 @@ export default function DashboardPage() {
             }
           >
             Launchpad
+          </button>
+          <button
+            type="button"
+            onClick={() => setDashboardMode('notes')}
+            className={
+              dashboardMode === 'notes'
+                ? 'rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition'
+                : 'rounded-xl px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'
+            }
+          >
+            Notes
           </button>
         </div>
 
@@ -690,7 +910,7 @@ export default function DashboardPage() {
             </div>
 
             <form className="mt-6 grid gap-4" onSubmit={handleManualImportSubmit}>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-3">
                 <label className="grid gap-2">
                   <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
                     Project name
@@ -857,6 +1077,19 @@ export default function DashboardPage() {
           />
         ) : null}
 
+        {isNoteModalOpen ? (
+          <NoteModal
+            note={activeNote}
+            open={isNoteModalOpen}
+            onClose={() => {
+              setIsNoteModalOpen(false)
+              setActiveNote(null)
+            }}
+            onSubmit={handleSaveNote}
+            isSaving={isSavingNote}
+          />
+        ) : null}
+
         {dashboardMode === 'projects' ? (
           <>
             <section className="grid gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -981,6 +1214,93 @@ export default function DashboardPage() {
               </section>
             ) : null}
           </>
+        ) : dashboardMode === 'notes' ? (
+          <div className="grid gap-4">
+            <section className="grid gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <SearchBar
+                value={notesSearch}
+                onChange={(event) => setNotesSearch(event.target.value)}
+                inputRef={notesSearchInputRef}
+                placeholder="Search notes, snippets, or file types...."
+              />
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="grid gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                    Filter by type
+                  </span>
+                  <select
+                    value={notesFilterType}
+                    onChange={(event) => setNotesFilterType(event.target.value)}
+                    className="rounded-2xl border border-white/70 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-800 dark:bg-slate-900 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                  >
+                    <option value="all">All note types</option>
+                    {NOTE_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                    Filter by language
+                  </span>
+                  <select
+                    value={notesFilterLanguage}
+                    onChange={(event) => setNotesFilterLanguage(event.target.value)}
+                    className="rounded-2xl border border-white/70 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-800 dark:bg-slate-900 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                  >
+                    <option value="all">All languages</option>
+                    {NOTE_LANGUAGE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                    Filter by tag
+                  </span>
+                  <select
+                    value={notesFilterTag}
+                    onChange={(event) => setNotesFilterTag(event.target.value)}
+                    className="rounded-2xl border border-white/70 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-800 dark:bg-slate-900 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                  >
+                    <option value="all">All tags</option>
+                    {availableNoteTags.map((tag) => (
+                      <option key={tag} value={tag}>
+                        {tag}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {availableNoteLanguages.length
+                  ? `Formats in use: ${availableNoteLanguages.map((language) => getNoteLanguageLabel(language)).join(', ')}${availableNoteTags.length ? ` · Tags: ${availableNoteTags.join(', ')}` : ''}`
+                  : 'Pick a language, file type, and tags for each note so the cards stay easy to scan.'}
+              </p>
+            </section>
+
+            <NotesGrid
+              notes={notes}
+              loading={notesLoading}
+              searchQuery={notesSearch}
+              filterType={notesFilterType}
+              filterLanguage={notesFilterLanguage}
+              filterTag={notesFilterTag}
+              onDelete={handleDeleteNote}
+              onEdit={openNoteComposer}
+              onTogglePin={handleToggleNotePin}
+              onTagClick={setNotesFilterTag}
+              addToast={addToast}
+            />
+          </div>
         ) : (
           <div className="grid gap-4">
             <section className="grid gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">

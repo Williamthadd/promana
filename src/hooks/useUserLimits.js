@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { doc, onSnapshot } from 'firebase/firestore'
-import { DEFAULT_USER_LIMITS } from '../constants/userLimits'
-import { db } from '../firebase'
+import { useEffect, useState } from "react"
+import { doc, onSnapshot } from "firebase/firestore"
+import { DEFAULT_USER_LIMITS } from "../constants/userLimits"
+import { db } from "../firebase"
 
 function toPositiveInteger(value) {
   const numericValue = Number(value)
@@ -19,6 +19,7 @@ function normalizeLimits(data) {
       toPositiveInteger(data?.maxProjects) ?? DEFAULT_USER_LIMITS.maxProjects,
     maxWebsites:
       toPositiveInteger(data?.maxWebsites) ?? DEFAULT_USER_LIMITS.maxWebsites,
+    maxNotes: toPositiveInteger(data?.maxNotes) ?? DEFAULT_USER_LIMITS.maxNotes,
   }
 }
 
@@ -36,7 +37,7 @@ export default function useUserLimits(user) {
       return undefined
     }
 
-    const limitsRef = doc(db, 'users', uid, 'settings', 'limits')
+    const limitsRef = doc(db, "users", uid, "settings", "limits")
 
     const unsubscribe = onSnapshot(
       limitsRef,
