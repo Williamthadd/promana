@@ -72,11 +72,11 @@ function NoteModalForm({ note, onClose, onSubmit, isSaving }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-4 py-6"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/55 px-4 py-4 sm:items-center sm:py-6"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-3xl rounded-3xl border border-gray-100 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+        className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-gray-100 bg-white p-5 shadow-2xl sm:max-h-[calc(100vh-3rem)] sm:p-6 dark:border-slate-800 dark:bg-slate-900"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
@@ -103,74 +103,76 @@ function NoteModalForm({ note, onClose, onSubmit, isSaving }) {
           </button>
         </div>
 
-        <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-                Card title
-              </span>
-              <input
-                type="text"
-                value={draft.title}
-                onChange={(event) => updateDraft("title", event.target.value)}
-                placeholder="Optional, for example User seed query"
-                className="rounded-2xl border border-gray-200 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
-              />
-            </label>
-
-            <label className="grid gap-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-                Note type
-              </span>
-              <select
-                value={draft.type}
-                onChange={(event) => updateDraft("type", event.target.value)}
-                className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
-              >
-                {NOTE_TYPE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="grid gap-4">
-            <label className="grid gap-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-                Tags
-              </span>
-              <div className="relative">
-                <Tags className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <form className="mt-6 flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                  Card title
+                </span>
                 <input
                   type="text"
-                  value={draft.tagsText}
-                  onChange={(event) => updateDraft("tagsText", event.target.value)}
-                  placeholder="backend, sql, production"
-                  className="w-full rounded-2xl border border-gray-200 py-3 pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                  value={draft.title}
+                  onChange={(event) => updateDraft("title", event.target.value)}
+                  placeholder="Optional, for example User seed query"
+                  className="rounded-2xl border border-gray-200 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
                 />
-              </div>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Separate tags with commas so you can filter related notes later.
-              </p>
+              </label>
+
+              <label className="grid gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                  Note type
+                </span>
+                <select
+                  value={draft.type}
+                  onChange={(event) => updateDraft("type", event.target.value)}
+                  className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                >
+                  {NOTE_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="grid gap-4">
+              <label className="grid gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                  Tags
+                </span>
+                <div className="relative">
+                  <Tags className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={draft.tagsText}
+                    onChange={(event) => updateDraft("tagsText", event.target.value)}
+                    placeholder="backend, sql, production"
+                    className="w-full rounded-2xl border border-gray-200 py-3 pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                  />
+                </div>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Separate tags with commas so you can filter related notes later.
+                </p>
+              </label>
+            </div>
+
+            <label className="grid gap-2 pb-1">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                Content
+              </span>
+              <textarea
+                value={draft.content}
+                onChange={(event) => updateDraft("content", event.target.value)}
+                placeholder={getNotePlaceholder(draft.type, draft.language)}
+                rows={10}
+                className="min-h-[clamp(12rem,35vh,24rem)] w-full resize-y rounded-3xl border border-gray-200 px-4 py-4 font-mono text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+              />
             </label>
           </div>
 
-          <label className="grid gap-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-              Content
-            </span>
-            <textarea
-              value={draft.content}
-              onChange={(event) => updateDraft("content", event.target.value)}
-              placeholder={getNotePlaceholder(draft.type, draft.language)}
-              rows={14}
-              className="min-h-72 rounded-3xl border border-gray-200 px-4 py-4 font-mono text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
-            />
-          </label>
-
-          <div className="flex flex-wrap justify-end gap-3">
+          <div className="mt-4 flex shrink-0 flex-wrap justify-end gap-3 border-t border-gray-100 pt-4 dark:border-slate-800">
             <button
               type="button"
               onClick={onClose}
