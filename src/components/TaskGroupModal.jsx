@@ -1,7 +1,10 @@
 import { useState } from "react"
 import { createPortal } from "react-dom"
 import {
+  ArrowDown,
+  ArrowUp,
   Check,
+  GripVertical,
   ListPlus,
   LoaderCircle,
   Plus,
@@ -12,7 +15,9 @@ import {
 import { TASK_STATUS_OPTIONS } from "../constants/taskStatuses"
 import {
   createTaskItem,
+  moveTaskItem,
   normalizeTaskItems,
+  reorderTaskItems,
   setTaskCompletion,
   setTaskStatus,
 } from "../utils/taskUtils"
@@ -42,6 +47,8 @@ function getDefaultDraft(taskGroup) {
 function TaskGroupModalForm({ taskGroup, onClose, onSubmit, isSaving }) {
   const [draft, setDraft] = useState(() => getDefaultDraft(taskGroup))
   const [formError, setFormError] = useState("")
+  const [draggedTaskId, setDraggedTaskId] = useState(null)
+  const [dragOverTaskId, setDragOverTaskId] = useState(null)
   const isEditing = Boolean(taskGroup?.id)
 
   function updateTaskText(taskId, text) {
@@ -86,6 +93,48 @@ function TaskGroupModalForm({ taskGroup, onClose, onSubmit, isSaving }) {
         tasks: nextTasks.length > 0 ? nextTasks : [createTaskItem("", 0)],
       }
     })
+  }
+
+  function moveTask(taskId, offset) {
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      tasks: moveTaskItem(currentDraft.tasks, taskId, offset),
+    }))
+  }
+
+  function reorderTask(sourceTaskId, targetTaskId) {
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      tasks: reorderTaskItems(
+        currentDraft.tasks,
+        sourceTaskId,
+        targetTaskId,
+      ),
+    }))
+  }
+
+  function handleTaskDragStart(event, taskId) {
+    setDraggedTaskId(taskId)
+    event.dataTransfer.effectAllowed = "move"
+    event.dataTransfer.setData("text/plain", taskId)
+  }
+
+  function handleTaskDrop(event, targetTaskId) {
+    event.preventDefault()
+    const sourceTaskId =
+      event.dataTransfer.getData("text/plain") || draggedTaskId
+
+    if (sourceTaskId) {
+      reorderTask(sourceTaskId, targetTaskId)
+    }
+
+    setDraggedTaskId(null)
+    setDragOverTaskId(null)
+  }
+
+  function finishTaskDrag() {
+    setDraggedTaskId(null)
+    setDragOverTaskId(null)
   }
 
   function handleSubmit(event) {
@@ -222,7 +271,7 @@ function TaskGroupModalForm({ taskGroup, onClose, onSubmit, isSaving }) {
                   </p>
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                     The first point starts in progress; later points start not
-                    started.
+                    started. Drag points or use the arrows to reprioritize them.
                   </p>
                 </div>
                 <button
@@ -239,22 +288,77 @@ function TaskGroupModalForm({ taskGroup, onClose, onSubmit, isSaving }) {
                 {draft.tasks.map((task, index) => (
                   <div
                     key={task.id}
-                    className="grid gap-3 rounded-2xl border border-white bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-[auto_minmax(0,1fr)_10rem_auto] sm:items-center"
+                    onDragEnter={() => setDragOverTaskId(task.id)}
+                    onDragOver={(event) => {
+                      event.preventDefault()
+                      event.dataTransfer.dropEffect = "move"
+                    }}
+                    onDrop={(event) => handleTaskDrop(event, task.id)}
+                    className={`grid gap-3 rounded-2xl border bg-white p-3 shadow-sm transition dark:bg-slate-900 sm:grid-cols-[auto_minmax(0,1fr)_10rem_auto] sm:items-center ${
+                      dragOverTaskId === task.id && draggedTaskId !== task.id
+                        ? "border-blue-400 ring-4 ring-blue-100 dark:border-blue-500 dark:ring-blue-500/20"
+                        : "border-white dark:border-slate-800"
+                    } ${draggedTaskId === task.id ? "opacity-50" : ""}`}
                   >
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateTaskCompletion(task.id, !task.isCompleted)
-                      }
-                      className={`inline-flex h-7 w-7 items-center justify-center rounded-lg border transition ${
-                        task.isCompleted
-                          ? "border-emerald-500 bg-emerald-500 text-white"
-                          : "border-slate-300 bg-white text-transparent hover:border-blue-400 dark:border-slate-600 dark:bg-slate-950"
-                      }`}
-                      aria-label={`${task.isCompleted ? "Mark incomplete" : "Mark complete"}: ${task.text || `point ${index + 1}`}`}
-                    >
-                      <Check className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <span
+                        draggable
+                        role="button"
+                        tabIndex={0}
+                        onDragStart={(event) =>
+                          handleTaskDragStart(event, task.id)
+                        }
+                        onDragEnd={finishTaskDrag}
+                        onKeyDown={(event) => {
+                          if (event.key === "ArrowUp") {
+                            event.preventDefault()
+                            moveTask(task.id, -1)
+                          } else if (event.key === "ArrowDown") {
+                            event.preventDefault()
+                            moveTask(task.id, 1)
+                          }
+                        }}
+                        className="inline-flex h-8 w-7 cursor-grab items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-blue-600 active:cursor-grabbing dark:hover:bg-slate-800 dark:hover:text-blue-300"
+                        aria-label={`Drag to reorder point ${index + 1}. Use arrow keys to move it.`}
+                        title="Drag to reorder"
+                      >
+                        <GripVertical className="h-4 w-4" />
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => moveTask(task.id, -1)}
+                        disabled={index === 0}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-25 dark:hover:bg-slate-800 dark:hover:text-blue-300"
+                        aria-label={`Move point ${index + 1} up`}
+                        title="Move up"
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveTask(task.id, 1)}
+                        disabled={index === draft.tasks.length - 1}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-25 dark:hover:bg-slate-800 dark:hover:text-blue-300"
+                        aria-label={`Move point ${index + 1} down`}
+                        title="Move down"
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateTaskCompletion(task.id, !task.isCompleted)
+                        }
+                        className={`ml-1 inline-flex h-7 w-7 items-center justify-center rounded-lg border transition ${
+                          task.isCompleted
+                            ? "border-emerald-500 bg-emerald-500 text-white"
+                            : "border-slate-300 bg-white text-transparent hover:border-blue-400 dark:border-slate-600 dark:bg-slate-950"
+                        }`}
+                        aria-label={`${task.isCompleted ? "Mark incomplete" : "Mark complete"}: ${task.text || `point ${index + 1}`}`}
+                      >
+                        <Check className="h-4 w-4" />
+                      </button>
+                    </div>
 
                     <input
                       type="text"

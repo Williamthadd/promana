@@ -37,6 +37,10 @@ function normalizeLimits(data) {
     toPositiveInteger(data?.maxWebsites) ?? DEFAULT_USER_LIMITS.maxWebsites
   const maxNotes =
     toPositiveInteger(data?.maxNotes) ?? DEFAULT_USER_LIMITS.maxNotes
+  const maxTasks =
+    toPositiveInteger(data?.maxTasks) ?? DEFAULT_USER_LIMITS.maxTasks
+  const maxSchedules =
+    toPositiveInteger(data?.maxSchedules) ?? DEFAULT_USER_LIMITS.maxSchedules
   const explicitPlan =
     typeof data?.isPro === "boolean"
       ? data.isPro
@@ -48,7 +52,9 @@ function normalizeLimits(data) {
   const inferredPlan =
     maxProjects > DEFAULT_USER_LIMITS.maxProjects ||
     maxWebsites > DEFAULT_USER_LIMITS.maxWebsites ||
-    maxNotes > DEFAULT_USER_LIMITS.maxNotes
+    maxNotes > DEFAULT_USER_LIMITS.maxNotes ||
+    maxTasks > DEFAULT_USER_LIMITS.maxTasks ||
+    maxSchedules > DEFAULT_USER_LIMITS.maxSchedules
       ? "pro"
       : "free"
 
@@ -57,6 +63,8 @@ function normalizeLimits(data) {
     maxProjects,
     maxWebsites,
     maxNotes,
+    maxTasks,
+    maxSchedules,
   }
 }
 

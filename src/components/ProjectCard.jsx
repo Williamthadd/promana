@@ -730,7 +730,10 @@ export default function ProjectCard({
 
   return (
     <>
-      <article className="relative flex h-full flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900">
+      <article
+        id={`project-card-${project.id}`}
+        className="relative flex h-full scroll-mt-24 flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900"
+      >
         <div className="flex items-start justify-between gap-3">
           <LanguageBadge language={getPrimaryProjectLanguage(project)} />
 

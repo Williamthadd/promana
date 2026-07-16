@@ -60,29 +60,19 @@ export default function AddLaunchpadModal({
     }))
   }
 
-  function handleCustomCategoryApply() {
-    const nextCategory = normalizeLaunchpadCategoryInput(formState.customCategory)
-
-    if (!nextCategory) {
-      addToast('Type a category name before adding it.', 'info')
-      return
-    }
-
-    setFormState((currentState) => ({
-      ...currentState,
-      category: nextCategory,
-      customCategory: '',
-    }))
-    addToast(`Using ${nextCategory} as the category.`, 'success')
-  }
-
   async function handleSubmit(event) {
     event.preventDefault()
 
     const uid = auth.currentUser?.uid
     const name = formState.name.trim()
     const url = formState.url.trim()
-    const category = normalizeLaunchpadCategoryInput(formState.category) || 'other'
+    const selectedCategory =
+      normalizeLaunchpadCategoryInput(formState.category) || 'other'
+    const customCategory = normalizeLaunchpadCategoryInput(
+      formState.customCategory,
+    )
+    const category =
+      selectedCategory === 'other' ? customCategory : selectedCategory
 
     if (!uid) {
       addToast('You need to be signed in to add shortcuts.', 'error')
@@ -104,6 +94,11 @@ export default function AddLaunchpadModal({
 
     if (!url || !isValidUrl(url)) {
       addToast('Add a valid http or https URL before saving.', 'error')
+      return
+    }
+
+    if (!category) {
+      addToast('Type a custom category name before saving.', 'error')
       return
     }
 
@@ -238,12 +233,18 @@ export default function AddLaunchpadModal({
             </span>
             <select
               value={formState.category}
-              onChange={(event) =>
+              onChange={(event) => {
+                const nextCategory = event.target.value
+
                 setFormState((currentState) => ({
                   ...currentState,
-                  category: event.target.value,
+                  category: nextCategory,
+                  customCategory:
+                    nextCategory === 'other'
+                      ? currentState.customCategory
+                      : '',
                 }))
-              }
+              }}
               className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
             >
               {categoryOptions.map((category) => (
@@ -254,13 +255,14 @@ export default function AddLaunchpadModal({
             </select>
           </label>
 
-          <div className="grid gap-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-              Add custom category
-            </span>
-            <div className="flex flex-col gap-3 sm:flex-row">
+          {formState.category === 'other' ? (
+            <label className="grid gap-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                Custom category
+              </span>
               <input
                 type="text"
+                required
                 value={formState.customCategory}
                 onChange={(event) =>
                   setFormState((currentState) => ({
@@ -268,24 +270,12 @@ export default function AddLaunchpadModal({
                     customCategory: event.target.value,
                   }))
                 }
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    handleCustomCategoryApply()
-                  }
-                }}
                 placeholder="e.g. CRM, Finance, Monitoring"
-                className="min-w-0 flex-1 rounded-2xl border border-gray-200 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                autoFocus
+                className="min-w-0 rounded-2xl border border-gray-200 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
               />
-              <button
-                type="button"
-                onClick={handleCustomCategoryApply}
-                className="rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-              >
-                Use category
-              </button>
-            </div>
-          </div>
+            </label>
+          ) : null}
         </div>
 
         <label className="grid gap-2">
@@ -309,7 +299,7 @@ export default function AddLaunchpadModal({
         {!isUnlimited ? (
           <div className="grid gap-2">
             <p className="text-sm font-medium text-blue-700 dark:text-blue-200">
-              {`${usedWebsites}/${maxWebsites} websites used. ${remainingWebsiteSlots} slot${remainingWebsiteSlots === 1 ? '' : 's'} left.`}
+              {`Free plan: ${usedWebsites}/${maxWebsites} websites used. ${remainingWebsiteSlots} slot${remainingWebsiteSlots === 1 ? '' : 's'} left.`}
             </p>
           </div>
         ) : null}

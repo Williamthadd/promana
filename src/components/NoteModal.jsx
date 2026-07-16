@@ -34,11 +34,11 @@ function getNotePlaceholder(type, language) {
   }
 
   if (type === "config" || language === "yaml") {
-    return "app:\n  name: ProMan\n  environment: production"
+    return "app:\n  name: ProMana\n  environment: production"
   }
 
   if (language === "golang") {
-    return "func main() {\n    fmt.Println(\"hello from ProMan\")\n}"
+    return "func main() {\n    fmt.Println(\"hello from ProMana\")\n}"
   }
 
   if (language === "python") {

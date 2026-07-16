@@ -51,6 +51,39 @@ export function normalizeTaskItems(tasks) {
   return tasks.map(normalizeTaskItem)
 }
 
+export function moveTaskItem(tasks, taskId, offset) {
+  const currentIndex = tasks.findIndex((task) => task.id === taskId)
+  const targetIndex = currentIndex + offset
+
+  if (
+    currentIndex < 0 ||
+    targetIndex < 0 ||
+    targetIndex >= tasks.length ||
+    offset === 0
+  ) {
+    return tasks
+  }
+
+  const nextTasks = [...tasks]
+  const [movedTask] = nextTasks.splice(currentIndex, 1)
+  nextTasks.splice(targetIndex, 0, movedTask)
+  return nextTasks
+}
+
+export function reorderTaskItems(tasks, sourceTaskId, targetTaskId) {
+  const sourceIndex = tasks.findIndex((task) => task.id === sourceTaskId)
+  const targetIndex = tasks.findIndex((task) => task.id === targetTaskId)
+
+  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+    return tasks
+  }
+
+  const nextTasks = [...tasks]
+  const [movedTask] = nextTasks.splice(sourceIndex, 1)
+  nextTasks.splice(targetIndex, 0, movedTask)
+  return nextTasks
+}
+
 export function setTaskCompletion(tasks, taskId, isCompleted) {
   return normalizeTaskItems(tasks).map((task, index) => {
     if (task.id !== taskId) {

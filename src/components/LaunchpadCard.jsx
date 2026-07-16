@@ -44,6 +44,7 @@ export default function LaunchpadCard({
   const [nameDraft, setNameDraft] = useState(item.name ?? '')
   const [urlDraft, setUrlDraft] = useState(item.url ?? '')
   const [notesDraft, setNotesDraft] = useState(item.notes ?? '')
+  const [categoryDraft, setCategoryDraft] = useState(item.category ?? 'other')
   const [customCategoryDraft, setCustomCategoryDraft] = useState('')
   const [notesMenuState, setNotesMenuState] = useState({
     isOpen: false,
@@ -71,6 +72,7 @@ export default function LaunchpadCard({
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setIsMenuOpen(false)
         setIsCategoryEditorOpen(false)
+        setCategoryDraft(item.category ?? 'other')
         setCustomCategoryDraft('')
       }
 
@@ -89,7 +91,7 @@ export default function LaunchpadCard({
     return () => {
       document.removeEventListener('mousedown', handlePointerDown)
     }
-  }, [isCategoryEditorOpen, isMenuOpen, notesMenuState.isOpen])
+  }, [isCategoryEditorOpen, isMenuOpen, item.category, notesMenuState.isOpen])
 
   async function commitName() {
     const nextName = nameDraft.trim()
@@ -227,6 +229,7 @@ export default function LaunchpadCard({
 
     if (normalizedCategory === item.category) {
       setIsCategoryEditorOpen(false)
+      setCategoryDraft(normalizedCategory)
       setCustomCategoryDraft('')
       return
     }
@@ -238,6 +241,7 @@ export default function LaunchpadCard({
     }
 
     setIsCategoryEditorOpen(false)
+    setCategoryDraft(normalizedCategory)
     setCustomCategoryDraft('')
     addToast('Category updated.', 'success')
   }
@@ -328,6 +332,7 @@ export default function LaunchpadCard({
                     type="button"
                     onClick={() => {
                       setIsCategoryEditorOpen((currentState) => !currentState)
+                      setCategoryDraft(item.category ?? 'other')
                       setCustomCategoryDraft('')
                     }}
                     className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
@@ -338,9 +343,14 @@ export default function LaunchpadCard({
                     <div className="mt-2 grid max-w-full gap-2">
                       <select
                         autoFocus
-                        value={item.category ?? 'other'}
+                        value={categoryDraft}
                         onChange={(event) => {
-                          void handleCategoryChange(event.target.value)
+                          const nextCategory = event.target.value
+                          setCategoryDraft(nextCategory)
+
+                          if (nextCategory !== 'other') {
+                            void handleCategoryChange(nextCategory)
+                          }
                         }}
                         className="w-full min-w-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                       >
@@ -350,28 +360,32 @@ export default function LaunchpadCard({
                           </option>
                         ))}
                       </select>
-                      <input
-                        type="text"
-                        value={customCategoryDraft}
-                        onChange={(event) =>
-                          setCustomCategoryDraft(event.target.value)
-                        }
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault()
-                            handleCustomCategoryApply()
-                          }
-                        }}
-                        placeholder="Custom category"
-                        className="w-full min-w-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleCustomCategoryApply}
-                        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                      >
-                        Add category
-                      </button>
+                      {categoryDraft === 'other' ? (
+                        <>
+                          <input
+                            type="text"
+                            value={customCategoryDraft}
+                            onChange={(event) =>
+                              setCustomCategoryDraft(event.target.value)
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault()
+                                handleCustomCategoryApply()
+                              }
+                            }}
+                            placeholder="Custom category"
+                            className="w-full min-w-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleCustomCategoryApply}
+                            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                          >
+                            Save custom category
+                          </button>
+                        </>
+                      ) : null}
                     </div>
                   ) : null}
                   <button

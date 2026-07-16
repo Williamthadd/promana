@@ -8,6 +8,7 @@ import {
   updateDoc,
 } from 'firebase/firestore'
 import {
+  CalendarDays,
   FolderPlus,
   ListTodo,
   LoaderCircle,
@@ -16,6 +17,8 @@ import {
   X,
 } from 'lucide-react'
 import AddLaunchpadModal from '../components/AddLaunchpadModal'
+import CalendarEntryModal from '../components/CalendarEntryModal'
+import CalendarWorkspace from '../components/CalendarWorkspace'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EditorManagerModal from '../components/EditorManagerModal'
 import Header from '../components/Header'
@@ -46,6 +49,7 @@ import { DEFAULT_PROJECT_ENVIRONMENTS } from '../constants/projectEnvironments'
 import { TASK_STATUS_OPTIONS } from '../constants/taskStatuses'
 import { auth, db } from '../firebase'
 import useAuth from '../hooks/useAuth'
+import useCalendarEntries from '../hooks/useCalendarEntries'
 import useCustomEditors from '../hooks/useCustomEditors'
 import useLightBackgroundColor from '../hooks/useLightBackgroundColor'
 import useLaunchpad from '../hooks/useLaunchpad'
@@ -59,6 +63,11 @@ import {
   normalizeProjectPath,
   normalizeRepositoryUrl,
 } from '../utils/formatters'
+import {
+  formatCalendarTime,
+  formatDateKey,
+  getTimeMinutes,
+} from '../utils/calendar'
 import { getStoredLightBackgroundColor } from '../utils/lightBackground'
 import {
   getPrimaryProjectLanguage,
@@ -147,6 +156,11 @@ export default function DashboardPage() {
     error: taskGroupsError,
   } = useTaskGroups(user?.uid)
   const {
+    entries: calendarEntries,
+    loading: calendarEntriesLoading,
+    error: calendarEntriesError,
+  } = useCalendarEntries(user?.uid)
+  const {
     editors: customEditors,
     error: customEditorsError,
     saveCustomEditors,
@@ -191,6 +205,14 @@ export default function DashboardPage() {
   const [activeTaskGroup, setActiveTaskGroup] = useState(null)
   const [isSavingTaskGroup, setIsSavingTaskGroup] = useState(false)
   const [taskGroupToDelete, setTaskGroupToDelete] = useState(null)
+  const [isCalendarEntryModalOpen, setIsCalendarEntryModalOpen] = useState(false)
+  const [activeCalendarEntry, setActiveCalendarEntry] = useState(null)
+  const [calendarInitialDateKey, setCalendarInitialDateKey] = useState(() =>
+    formatDateKey(new Date()),
+  )
+  const [isSavingCalendarEntry, setIsSavingCalendarEntry] = useState(false)
+  const [calendarEntryToDelete, setCalendarEntryToDelete] = useState(null)
+  const [workspaceFocusTarget, setWorkspaceFocusTarget] = useState(null)
   const [projectDraft, setProjectDraft] = useState({
     displayName: '',
     absolutePath: '',
@@ -205,6 +227,8 @@ export default function DashboardPage() {
   const maxProjects = limits.maxProjects
   const maxWebsites = limits.maxWebsites
   const maxNotes = limits.maxNotes
+  const maxTasks = limits.maxTasks
+  const maxSchedules = limits.maxSchedules
   const isProPlan = limits.plan === 'pro'
   const planLabel = isProPlan ? 'Pro plan' : 'Free plan'
   const usedProjectCount = projects.length
@@ -220,12 +244,27 @@ export default function DashboardPage() {
       total + taskGroup.tasks.filter((task) => task.status === 'done').length,
     0,
   )
+  const todayDateKey = formatDateKey(new Date())
+  const todayCalendarEntryCount = calendarEntries.filter(
+    (entry) => entry.dateKey === todayDateKey,
+  ).length
+  const calendarReminderCount = calendarEntries.filter(
+    (entry) => entry.reminderEnabled,
+  ).length
   const hasReachedProjectLimit = !isProPlan && usedProjectCount >= maxProjects
   const hasReachedWebsiteLimit = !isProPlan && usedWebsiteCount >= maxWebsites
   const hasReachedNoteLimit = !isProPlan && usedNoteCount >= maxNotes
+  const hasReachedTaskLimit = !isProPlan && usedTaskGroupCount >= maxTasks
+  const hasReachedScheduleLimit =
+    !isProPlan && calendarEntries.length >= maxSchedules
   const remainingProjectSlots = Math.max(0, maxProjects - usedProjectCount)
   const remainingWebsiteSlots = Math.max(0, maxWebsites - usedWebsiteCount)
   const remainingNoteSlots = Math.max(0, maxNotes - usedNoteCount)
+  const remainingTaskSlots = Math.max(0, maxTasks - usedTaskGroupCount)
+  const remainingScheduleSlots = Math.max(
+    0,
+    maxSchedules - calendarEntries.length,
+  )
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode)
@@ -255,6 +294,8 @@ export default function DashboardPage() {
         notesSearchInputRef.current?.focus()
       } else if (dashboardMode === 'tasks') {
         tasksSearchInputRef.current?.focus()
+      } else if (dashboardMode === 'calendar') {
+        return
       } else {
         searchInputRef.current?.focus()
       }
@@ -291,6 +332,67 @@ export default function DashboardPage() {
   }, [addToast, taskGroupsError])
 
   useEffect(() => {
+    if (calendarEntriesError) {
+      addToast('Calendar sync hit an issue. Please try refreshing.', 'error')
+    }
+  }, [addToast, calendarEntriesError])
+
+  useEffect(() => {
+    if (!user?.uid || calendarEntriesLoading) {
+      return undefined
+    }
+
+    function checkCalendarReminders() {
+      const now = new Date()
+      const currentDateKey = formatDateKey(now)
+      const currentMinutes = now.getHours() * 60 + now.getMinutes()
+      const storageKey = `proman-calendar-reminders-${user.uid}-${currentDateKey}`
+      let shownReminderIds = []
+
+      try {
+        shownReminderIds = JSON.parse(
+          window.localStorage.getItem(storageKey) || '[]',
+        )
+      } catch {
+        shownReminderIds = []
+      }
+
+      const shownReminderSet = new Set(shownReminderIds)
+      const dueEntries = calendarEntries.filter((entry) => {
+        const reminderMinutes = getTimeMinutes(entry.reminderTime)
+
+        return (
+          entry.reminderEnabled &&
+          entry.dateKey === currentDateKey &&
+          reminderMinutes !== null &&
+          reminderMinutes <= currentMinutes &&
+          !shownReminderSet.has(entry.id)
+        )
+      })
+
+      dueEntries.forEach((entry) => {
+        addToast(
+          `Calendar reminder: ${entry.title} (${formatCalendarTime(entry.reminderTime)})`,
+          'info',
+        )
+        shownReminderSet.add(entry.id)
+      })
+
+      if (dueEntries.length > 0) {
+        window.localStorage.setItem(
+          storageKey,
+          JSON.stringify(Array.from(shownReminderSet)),
+        )
+      }
+    }
+
+    checkCalendarReminders()
+    const reminderInterval = window.setInterval(checkCalendarReminders, 30_000)
+
+    return () => window.clearInterval(reminderInterval)
+  }, [addToast, calendarEntries, calendarEntriesLoading, user?.uid])
+
+  useEffect(() => {
     if (customEditorsError) {
       addToast('Custom IDE settings could not be synced. Please try refreshing.', 'error')
     }
@@ -321,6 +423,28 @@ export default function DashboardPage() {
       setActiveNote(null)
     }
   }, [activeNote?.id, hasReachedNoteLimit, isNoteModalOpen])
+
+  useEffect(() => {
+    if (hasReachedTaskLimit && isTaskGroupModalOpen && !activeTaskGroup?.id) {
+      setIsTaskGroupModalOpen(false)
+      setActiveTaskGroup(null)
+    }
+  }, [activeTaskGroup?.id, hasReachedTaskLimit, isTaskGroupModalOpen])
+
+  useEffect(() => {
+    if (
+      hasReachedScheduleLimit &&
+      isCalendarEntryModalOpen &&
+      !activeCalendarEntry?.id
+    ) {
+      setIsCalendarEntryModalOpen(false)
+      setActiveCalendarEntry(null)
+    }
+  }, [
+    activeCalendarEntry?.id,
+    hasReachedScheduleLimit,
+    isCalendarEntryModalOpen,
+  ])
 
   const availableLangs = useMemo(
     () =>
@@ -391,6 +515,32 @@ export default function DashboardPage() {
       return matchesSearch && matchesTag && matchesStatus
     })
   }, [taskGroups, tasksFilterStatus, tasksFilterTag, tasksSearch])
+
+  useEffect(() => {
+    if (!workspaceFocusTarget || dashboardMode !== workspaceFocusTarget.mode) {
+      return undefined
+    }
+
+    const focusTimeout = window.setTimeout(() => {
+      const targetElement = document.getElementById(workspaceFocusTarget.elementId)
+
+      if (targetElement) {
+        targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        targetElement.animate?.(
+          [
+            { boxShadow: '0 0 0 0 rgba(37, 99, 235, 0)' },
+            { boxShadow: '0 0 0 6px rgba(37, 99, 235, 0.28)' },
+            { boxShadow: '0 0 0 0 rgba(37, 99, 235, 0)' },
+          ],
+          { duration: 1600, easing: 'ease-out' },
+        )
+      }
+
+      setWorkspaceFocusTarget(null)
+    }, 120)
+
+    return () => window.clearTimeout(focusTimeout)
+  }, [dashboardMode, workspaceFocusTarget])
 
   const launchpadCategoryOptions = useMemo(
     () =>
@@ -753,6 +903,14 @@ export default function DashboardPage() {
   }
 
   function openTaskGroupComposer(taskGroup = null) {
+    if (!taskGroup?.id && hasReachedTaskLimit) {
+      addToast(
+        `You can only save ${maxTasks} task groups here. Remove one before adding another.`,
+        'error',
+      )
+      return
+    }
+
     setActiveTaskGroup(taskGroup)
     setIsTaskGroupModalOpen(true)
   }
@@ -760,6 +918,14 @@ export default function DashboardPage() {
   async function handleSaveTaskGroup(taskGroupDraft) {
     if (!user) {
       addToast('You need to be signed in to save task groups.', 'error')
+      return
+    }
+
+    if (!activeTaskGroup?.id && hasReachedTaskLimit) {
+      addToast(
+        `You can only save ${maxTasks} task groups here. Remove one before adding another.`,
+        'error',
+      )
       return
     }
 
@@ -831,6 +997,125 @@ export default function DashboardPage() {
     } catch {
       addToast('Unable to remove that task group right now.', 'error')
     }
+  }
+
+  function openCalendarEntryComposer(dateKey = formatDateKey(new Date())) {
+    if (hasReachedScheduleLimit) {
+      addToast(
+        `You can only save ${maxSchedules} calendar schedules here. Remove one before adding another.`,
+        'error',
+      )
+      return
+    }
+
+    setActiveCalendarEntry(null)
+    setCalendarInitialDateKey(dateKey)
+    setIsCalendarEntryModalOpen(true)
+  }
+
+  function openCalendarEntryEditor(entry) {
+    setActiveCalendarEntry(entry)
+    setCalendarInitialDateKey(entry.dateKey)
+    setIsCalendarEntryModalOpen(true)
+  }
+
+  function closeCalendarEntryModal() {
+    setIsCalendarEntryModalOpen(false)
+    setActiveCalendarEntry(null)
+  }
+
+  async function handleSaveCalendarEntry(entryDraft) {
+    if (!user) {
+      addToast('You need to be signed in to save calendar targets.', 'error')
+      return
+    }
+
+    if (!activeCalendarEntry?.id && hasReachedScheduleLimit) {
+      addToast(
+        `You can only save ${maxSchedules} calendar schedules here. Remove one before adding another.`,
+        'error',
+      )
+      return
+    }
+
+    setIsSavingCalendarEntry(true)
+    const timestamp = Timestamp.now()
+    const payload = {
+      ...entryDraft,
+      lastUpdatedAt: timestamp,
+    }
+
+    try {
+      if (activeCalendarEntry?.id) {
+        await updateDoc(
+          doc(
+            db,
+            'users',
+            user.uid,
+            'calendarEntries',
+            activeCalendarEntry.id,
+          ),
+          payload,
+        )
+        addToast('Calendar target updated.', 'success')
+      } else {
+        await addDoc(collection(db, 'users', user.uid, 'calendarEntries'), {
+          ...payload,
+          createdAt: timestamp,
+        })
+        addToast(`${entryDraft.title} scheduled.`, 'success')
+      }
+
+      closeCalendarEntryModal()
+    } catch {
+      addToast('Unable to save that calendar target right now.', 'error')
+    } finally {
+      setIsSavingCalendarEntry(false)
+    }
+  }
+
+  async function handleDeleteCalendarEntry() {
+    if (!user || !calendarEntryToDelete) {
+      return
+    }
+
+    try {
+      await deleteDoc(
+        doc(
+          db,
+          'users',
+          user.uid,
+          'calendarEntries',
+          calendarEntryToDelete.id,
+        ),
+      )
+      addToast(`${calendarEntryToDelete.title} removed from Calendar.`, 'success')
+      setCalendarEntryToDelete(null)
+    } catch {
+      addToast('Unable to remove that calendar target right now.', 'error')
+    }
+  }
+
+  function openCalendarLinkedProject(project) {
+    setFilterLang('all')
+    setFilterTag('all')
+    setSearch(project.displayName || '')
+    setDashboardMode('projects')
+    setWorkspaceFocusTarget({
+      mode: 'projects',
+      elementId: `project-card-${project.id}`,
+    })
+  }
+
+  function openCalendarLinkedTaskGroup(taskGroup) {
+    setTasksFilterStatus('all')
+    setTasksFilterTag('all')
+    setTasksSearch(taskGroup.title || '')
+    setDashboardMode('tasks')
+    setWorkspaceFocusTarget({
+      mode: 'tasks',
+      elementId: `task-group-card-${taskGroup.id}`,
+    })
   }
 
   if (authLoading || limitsLoading) {
@@ -980,7 +1265,7 @@ export default function DashboardPage() {
                 <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
                   {hasReachedWebsiteLimit
                     ? `${planLabel}: Website limit reached. Each account can only save ${maxWebsites} shortcuts here.`
-                    : `${usedWebsiteCount}/${maxWebsites} websites used. ${remainingWebsiteSlots} slot${remainingWebsiteSlots === 1 ? '' : 's'} left.`}
+                    : `Free plan: ${usedWebsiteCount}/${maxWebsites} websites used. ${remainingWebsiteSlots} slot${remainingWebsiteSlots === 1 ? '' : 's'} left.`}
                 </p>
               ) : null}
             </>
@@ -1044,7 +1329,7 @@ export default function DashboardPage() {
                 </p>
               ) : null}
             </>
-          ) : (
+          ) : dashboardMode === 'tasks' ? (
             <>
               <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-2xl">
@@ -1087,14 +1372,85 @@ export default function DashboardPage() {
                   </div>
                   <button
                     type="button"
+                    disabled={hasReachedTaskLimit}
                     onClick={() => openTaskGroupComposer()}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-80"
                   >
                     <ListTodo className="h-4 w-4" />
-                    Add group
+                    {hasReachedTaskLimit ? 'Task limit reached' : 'Add group'}
                   </button>
                 </div>
               </div>
+              {!isProPlan ? (
+                <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                  {hasReachedTaskLimit
+                    ? `${planLabel}: Task limit reached. Each account can only save ${maxTasks} task groups here.`
+                    : `${planLabel}: ${usedTaskGroupCount}/${maxTasks} task groups used. ${remainingTaskSlots} slot${remainingTaskSlots === 1 ? '' : 's'} left.`}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                <div className="max-w-2xl">
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+                    Calendar workspace
+                  </p>
+                  <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                    Put every target, tool, and checklist on the day it matters.
+                  </h1>
+                  <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                    Plan outcomes by month, attach the Projects, Launchpad links,
+                    and Task groups needed to deliver them, and receive reminders
+                    while ProMana is open.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[26rem]">
+                  <div className="rounded-2xl bg-blue-50 px-4 py-3 dark:bg-blue-500/10">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700 dark:text-blue-200">
+                      Targets
+                    </p>
+                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                      {calendarEntries.length}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-inset ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                      Today
+                    </p>
+                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                      {todayCalendarEntryCount}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-inset ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                      Reminders
+                    </p>
+                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                      {calendarReminderCount}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={hasReachedScheduleLimit}
+                    onClick={() => openCalendarEntryComposer()}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-80"
+                  >
+                    <CalendarDays className="h-4 w-4" />
+                    {hasReachedScheduleLimit
+                      ? 'Schedule limit reached'
+                      : 'Add target'}
+                  </button>
+                </div>
+              </div>
+              {!isProPlan ? (
+                <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                  {hasReachedScheduleLimit
+                    ? `${planLabel}: Schedule limit reached. Each account can only save ${maxSchedules} schedules here.`
+                    : `${planLabel}: ${calendarEntries.length}/${maxSchedules} schedules used. ${remainingScheduleSlots} slot${remainingScheduleSlots === 1 ? '' : 's'} left.`}
+                </p>
+              ) : null}
             </>
           )}
         </section>
@@ -1143,6 +1499,17 @@ export default function DashboardPage() {
             }
           >
             Tasks
+          </button>
+          <button
+            type="button"
+            onClick={() => setDashboardMode('calendar')}
+            className={
+              dashboardMode === 'calendar'
+                ? 'shrink-0 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition'
+                : 'shrink-0 rounded-xl px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'
+            }
+          >
+            Calendar
           </button>
         </div>
 
@@ -1384,6 +1751,29 @@ export default function DashboardPage() {
           message={`Are you sure you want to remove ${taskGroupToDelete?.title ?? 'this task group'}? This will also remove every to-do point inside it.`}
           onConfirm={handleDeleteTaskGroup}
           onCancel={() => setTaskGroupToDelete(null)}
+        />
+
+        {isCalendarEntryModalOpen ? (
+          <CalendarEntryModal
+            open={isCalendarEntryModalOpen}
+            entry={activeCalendarEntry}
+            initialDateKey={calendarInitialDateKey}
+            projects={projects}
+            launchpadItems={launchpadItems}
+            taskGroups={taskGroups}
+            hasReachedLimit={hasReachedScheduleLimit}
+            onClose={closeCalendarEntryModal}
+            onSubmit={handleSaveCalendarEntry}
+            isSaving={isSavingCalendarEntry}
+          />
+        ) : null}
+
+        <ConfirmDialog
+          open={Boolean(calendarEntryToDelete)}
+          title="Remove calendar target?"
+          message={`Are you sure you want to remove ${calendarEntryToDelete?.title ?? 'this target'} from your calendar?`}
+          onConfirm={handleDeleteCalendarEntry}
+          onCancel={() => setCalendarEntryToDelete(null)}
         />
 
         {isEditorManagerOpen ? (
@@ -1739,6 +2129,19 @@ export default function DashboardPage() {
               </section>
             ) : null}
           </div>
+        ) : dashboardMode === 'calendar' ? (
+          <CalendarWorkspace
+            entries={calendarEntries}
+            loading={calendarEntriesLoading}
+            projects={projects}
+            launchpadItems={launchpadItems}
+            taskGroups={taskGroups}
+            onCreate={openCalendarEntryComposer}
+            onEdit={openCalendarEntryEditor}
+            onDelete={setCalendarEntryToDelete}
+            onOpenProject={openCalendarLinkedProject}
+            onOpenTaskGroup={openCalendarLinkedTaskGroup}
+          />
         ) : (
           <div className="grid gap-4">
             <section className="grid gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
