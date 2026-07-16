@@ -1,4 +1,4 @@
-import { createElement, useState } from 'react'
+import { createElement, useId, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Bell,
@@ -41,6 +41,7 @@ function LinkPicker({
   onToggle,
   emptyMessage,
 }) {
+  const pickerId = useId()
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const selectedItems = items.filter((item) => selectedIds.includes(item.id))
@@ -63,9 +64,9 @@ function LinkPicker({
   }
 
   return (
-    <section className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-950/50">
+    <section className="calendar-link-picker group min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-slate-50/70 p-4 transition-[transform,border-color,background-color,box-shadow] duration-300 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white hover:shadow-lg hover:shadow-blue-950/5 motion-reduce:transform-none dark:border-slate-700 dark:bg-slate-950/50 dark:hover:border-blue-800 dark:hover:bg-slate-950 dark:hover:shadow-black/20">
       <div className="flex items-start gap-3">
-        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-blue-600 shadow-sm dark:bg-slate-900 dark:text-blue-300">
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-blue-600 shadow-sm transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:scale-105 motion-reduce:transform-none dark:bg-slate-900 dark:text-blue-300">
           {createElement(icon, { className: 'h-4 w-4' })}
         </span>
         <div className="min-w-0">
@@ -88,7 +89,7 @@ function LinkPicker({
               {selectedItems.map((item) => (
                 <span
                   key={item.id}
-                  className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 py-1.5 pl-3 pr-1.5 text-xs font-semibold text-blue-800 dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-100"
+                  className="calendar-selected-chip inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 py-1.5 pl-3 pr-1.5 text-xs font-semibold text-blue-800 dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-100"
                 >
                   <span className="min-w-0 truncate">{item.label}</span>
                   <button
@@ -116,6 +117,7 @@ function LinkPicker({
             disabled={items.length === 0}
             className="flex w-full min-w-0 items-center justify-between gap-3 overflow-hidden rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left text-sm font-semibold text-slate-700 transition hover:border-blue-300 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-700"
             aria-expanded={isOpen}
+            aria-controls={pickerId}
           >
             <span className="min-w-0 truncate">
               {items.length > 0
@@ -132,7 +134,10 @@ function LinkPicker({
           </button>
 
           {isOpen ? (
-            <div className="mt-2 grid w-full min-w-0 gap-2 overflow-hidden rounded-xl border border-gray-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <div
+              id={pickerId}
+              className="calendar-picker-menu mt-2 grid w-full min-w-0 gap-2 overflow-hidden rounded-xl border border-gray-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+            >
               <label className="relative block min-w-0">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                 <input
@@ -140,6 +145,7 @@ function LinkPicker({
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder={`Search ${title.toLowerCase()}...`}
+                  autoFocus
                   className="w-full min-w-0 rounded-lg border border-gray-200 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-500/20"
                   aria-label={`Search ${title.toLowerCase()}`}
                 />
@@ -152,7 +158,7 @@ function LinkPicker({
                       key={item.id}
                       type="button"
                       onClick={() => onToggle(item.id)}
-                      className="flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-lg px-2.5 py-2 text-left text-sm text-slate-700 transition hover:bg-blue-50 hover:text-blue-800 dark:text-slate-200 dark:hover:bg-blue-950/60 dark:hover:text-blue-100"
+                      className="calendar-picker-option flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-lg px-2.5 py-2 text-left text-sm text-slate-700 transition hover:bg-blue-50 hover:text-blue-800 dark:text-slate-200 dark:hover:bg-blue-950/60 dark:hover:text-blue-100"
                     >
                       <Plus className="h-3.5 w-3.5 shrink-0 text-blue-500" />
                       <span className="min-w-0 flex-1 truncate font-medium">
@@ -261,13 +267,21 @@ function CalendarEntryModalForm({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/55 px-3 py-3 sm:items-center sm:px-4 sm:py-6"
+      className="calendar-modal-backdrop fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/55 px-3 py-3 backdrop-blur-[2px] sm:items-center sm:px-4 sm:py-6"
       onClick={isSaving ? undefined : onClose}
     >
       <div
-        className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-gray-100 bg-white p-5 shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:p-7 dark:border-slate-800 dark:bg-slate-900"
+        className="calendar-modal-panel relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-gray-100 bg-white p-5 shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:p-7 dark:border-slate-800 dark:bg-slate-900"
         onClick={(event) => event.stopPropagation()}
       >
+        <div
+          className="pointer-events-none absolute inset-x-12 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/70 to-transparent"
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute -top-24 left-1/2 h-48 w-96 max-w-full -translate-x-1/2 rounded-full bg-blue-400/10 blur-3xl dark:bg-blue-500/10"
+          aria-hidden="true"
+        />
         <div className="flex shrink-0 items-start justify-between gap-4">
           <div>
             <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
@@ -384,7 +398,7 @@ function CalendarEntryModalForm({
               </div>
             </section>
 
-            <div className="grid min-w-0 gap-4 lg:grid-cols-3">
+            <div className="calendar-link-picker-grid grid min-w-0 gap-4 lg:grid-cols-3">
               <LinkPicker
                 icon={FolderKanban}
                 title="Projects"
