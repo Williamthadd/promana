@@ -7,8 +7,17 @@ import {
   Timestamp,
   updateDoc,
 } from 'firebase/firestore'
-import { FolderPlus, LoaderCircle, SearchX, StickyNote, X } from 'lucide-react'
+import {
+  FolderPlus,
+  ListTodo,
+  LoaderCircle,
+  SearchX,
+  StickyNote,
+  X,
+} from 'lucide-react'
 import AddLaunchpadModal from '../components/AddLaunchpadModal'
+import ConfirmDialog from '../components/ConfirmDialog'
+import EditorManagerModal from '../components/EditorManagerModal'
 import Header from '../components/Header'
 import LaunchpadGrid from '../components/LaunchpadGrid'
 import NoteModal from '../components/NoteModal'
@@ -18,6 +27,9 @@ import ProjectCard from '../components/ProjectCard'
 import SearchBar from '../components/SearchBar'
 import SkeletonCard from '../components/SkeletonCard'
 import SortFilterBar from '../components/SortFilterBar'
+import TaskGroupCard from '../components/TaskGroupCard'
+import TaskGroupModal from '../components/TaskGroupModal'
+import TaskGroupSkeletonCard from '../components/TaskGroupSkeletonCard'
 import ToastContainer from '../components/ToastContainer'
 import { LANGUAGE_COLORS } from '../constants/languageColors'
 import {
@@ -31,12 +43,15 @@ import {
   getNoteTypeLabel,
 } from '../constants/noteOptions'
 import { DEFAULT_PROJECT_ENVIRONMENTS } from '../constants/projectEnvironments'
+import { TASK_STATUS_OPTIONS } from '../constants/taskStatuses'
 import { auth, db } from '../firebase'
 import useAuth from '../hooks/useAuth'
+import useCustomEditors from '../hooks/useCustomEditors'
 import useLightBackgroundColor from '../hooks/useLightBackgroundColor'
 import useLaunchpad from '../hooks/useLaunchpad'
 import useNotes from '../hooks/useNotes'
 import useProjects from '../hooks/useProjects'
+import useTaskGroups from '../hooks/useTaskGroups'
 import useToast from '../hooks/useToast'
 import useUserLimits from '../hooks/useUserLimits'
 import {
@@ -127,6 +142,16 @@ export default function DashboardPage() {
   } = useLaunchpad()
   const { notes, loading: notesLoading, error: notesError } = useNotes(user?.uid)
   const {
+    taskGroups,
+    loading: taskGroupsLoading,
+    error: taskGroupsError,
+  } = useTaskGroups(user?.uid)
+  const {
+    editors: customEditors,
+    error: customEditorsError,
+    saveCustomEditors,
+  } = useCustomEditors(user?.uid)
+  const {
     limits,
     loading: limitsLoading,
     error: limitsError,
@@ -142,6 +167,9 @@ export default function DashboardPage() {
   const [notesFilterType, setNotesFilterType] = useState('all')
   const [notesFilterLanguage, setNotesFilterLanguage] = useState('all')
   const [notesFilterTag, setNotesFilterTag] = useState('all')
+  const [tasksSearch, setTasksSearch] = useState('')
+  const [tasksFilterStatus, setTasksFilterStatus] = useState('all')
+  const [tasksFilterTag, setTasksFilterTag] = useState('all')
   const [sort, setSort] = useState('lastUpdated')
   const [filterLang, setFilterLang] = useState('all')
   const [filterTag, setFilterTag] = useState('all')
@@ -154,9 +182,15 @@ export default function DashboardPage() {
     message: '',
   })
   const [isAddLaunchpadOpen, setIsAddLaunchpadOpen] = useState(false)
+  const [isEditorManagerOpen, setIsEditorManagerOpen] = useState(false)
+  const [isSavingCustomEditors, setIsSavingCustomEditors] = useState(false)
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false)
   const [activeNote, setActiveNote] = useState(null)
   const [isSavingNote, setIsSavingNote] = useState(false)
+  const [isTaskGroupModalOpen, setIsTaskGroupModalOpen] = useState(false)
+  const [activeTaskGroup, setActiveTaskGroup] = useState(null)
+  const [isSavingTaskGroup, setIsSavingTaskGroup] = useState(false)
+  const [taskGroupToDelete, setTaskGroupToDelete] = useState(null)
   const [projectDraft, setProjectDraft] = useState({
     displayName: '',
     absolutePath: '',
@@ -167,17 +201,28 @@ export default function DashboardPage() {
   const searchInputRef = useRef(null)
   const launchpadSearchInputRef = useRef(null)
   const notesSearchInputRef = useRef(null)
+  const tasksSearchInputRef = useRef(null)
   const maxProjects = limits.maxProjects
   const maxWebsites = limits.maxWebsites
   const maxNotes = limits.maxNotes
-  const planLabel =
-    maxProjects > 20 || maxWebsites > 50 || maxNotes > 100 ? 'Pro plan' : 'Free plan'
+  const isProPlan = limits.plan === 'pro'
+  const planLabel = isProPlan ? 'Pro plan' : 'Free plan'
   const usedProjectCount = projects.length
   const usedWebsiteCount = launchpadItems.length
   const usedNoteCount = notes.length
-  const hasReachedProjectLimit = usedProjectCount >= maxProjects
-  const hasReachedWebsiteLimit = usedWebsiteCount >= maxWebsites
-  const hasReachedNoteLimit = usedNoteCount >= maxNotes
+  const usedTaskGroupCount = taskGroups.length
+  const totalTaskPointCount = taskGroups.reduce(
+    (total, taskGroup) => total + taskGroup.tasks.length,
+    0,
+  )
+  const completedTaskPointCount = taskGroups.reduce(
+    (total, taskGroup) =>
+      total + taskGroup.tasks.filter((task) => task.status === 'done').length,
+    0,
+  )
+  const hasReachedProjectLimit = !isProPlan && usedProjectCount >= maxProjects
+  const hasReachedWebsiteLimit = !isProPlan && usedWebsiteCount >= maxWebsites
+  const hasReachedNoteLimit = !isProPlan && usedNoteCount >= maxNotes
   const remainingProjectSlots = Math.max(0, maxProjects - usedProjectCount)
   const remainingWebsiteSlots = Math.max(0, maxWebsites - usedWebsiteCount)
   const remainingNoteSlots = Math.max(0, maxNotes - usedNoteCount)
@@ -208,6 +253,8 @@ export default function DashboardPage() {
         launchpadSearchInputRef.current?.focus()
       } else if (dashboardMode === 'notes') {
         notesSearchInputRef.current?.focus()
+      } else if (dashboardMode === 'tasks') {
+        tasksSearchInputRef.current?.focus()
       } else {
         searchInputRef.current?.focus()
       }
@@ -236,6 +283,18 @@ export default function DashboardPage() {
       addToast('Notes sync hit an issue. Please try refreshing.', 'error')
     }
   }, [addToast, notesError])
+
+  useEffect(() => {
+    if (taskGroupsError) {
+      addToast('Tasks sync hit an issue. Please try refreshing.', 'error')
+    }
+  }, [addToast, taskGroupsError])
+
+  useEffect(() => {
+    if (customEditorsError) {
+      addToast('Custom IDE settings could not be synced. Please try refreshing.', 'error')
+    }
+  }, [addToast, customEditorsError])
 
   useEffect(() => {
     if (limitsError) {
@@ -294,6 +353,44 @@ export default function DashboardPage() {
       ).sort((left, right) => left.localeCompare(right)),
     [notes],
   )
+
+  const availableTaskTags = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          taskGroups
+            .flatMap((taskGroup) => taskGroup.tags ?? [])
+            .filter(Boolean),
+        ),
+      ).sort((left, right) => left.localeCompare(right)),
+    [taskGroups],
+  )
+
+  const visibleTaskGroups = useMemo(() => {
+    const searchTerm = tasksSearch.trim().toLowerCase()
+
+    return taskGroups.filter((taskGroup) => {
+      const searchableText = [
+        taskGroup.title,
+        taskGroup.note,
+        ...(taskGroup.tags ?? []),
+        ...taskGroup.tasks.map((task) => task.text),
+      ]
+        .join(' ')
+        .toLowerCase()
+      const matchesSearch = !searchTerm || searchableText.includes(searchTerm)
+      const matchesTag =
+        tasksFilterTag === 'all' ||
+        (taskGroup.tags ?? []).some(
+          (tag) => tag.toLowerCase() === tasksFilterTag.toLowerCase(),
+        )
+      const matchesStatus =
+        tasksFilterStatus === 'all' ||
+        taskGroup.tasks.some((task) => task.status === tasksFilterStatus)
+
+      return matchesSearch && matchesTag && matchesStatus
+    })
+  }, [taskGroups, tasksFilterStatus, tasksFilterTag, tasksSearch])
 
   const launchpadCategoryOptions = useMemo(
     () =>
@@ -555,6 +652,21 @@ export default function DashboardPage() {
     addToast(item.isPinned ? 'Unpinned.' : 'Pinned to top.', 'success')
   }
 
+  async function handleSaveCustomEditors(nextEditors) {
+    setIsSavingCustomEditors(true)
+
+    try {
+      await saveCustomEditors(nextEditors)
+      addToast('Project IDEs updated.', 'success')
+      return true
+    } catch (error) {
+      addToast(error?.message || 'Unable to save custom IDEs right now.', 'error')
+      return false
+    } finally {
+      setIsSavingCustomEditors(false)
+    }
+  }
+
   async function handleSaveNote(noteDraft) {
     if (!user) {
       addToast('You need to be signed in to save notes.', 'error')
@@ -640,6 +752,87 @@ export default function DashboardPage() {
     }
   }
 
+  function openTaskGroupComposer(taskGroup = null) {
+    setActiveTaskGroup(taskGroup)
+    setIsTaskGroupModalOpen(true)
+  }
+
+  async function handleSaveTaskGroup(taskGroupDraft) {
+    if (!user) {
+      addToast('You need to be signed in to save task groups.', 'error')
+      return
+    }
+
+    setIsSavingTaskGroup(true)
+    const timestamp = Timestamp.now()
+    const payload = {
+      title: taskGroupDraft.title,
+      note: taskGroupDraft.note,
+      tags: taskGroupDraft.tags ?? [],
+      tasks: taskGroupDraft.tasks,
+      lastUpdatedAt: timestamp,
+    }
+
+    try {
+      if (activeTaskGroup?.id) {
+        await updateDoc(
+          doc(db, 'users', user.uid, 'taskGroups', activeTaskGroup.id),
+          payload,
+        )
+        addToast('Task group updated.', 'success')
+      } else {
+        await addDoc(collection(db, 'users', user.uid, 'taskGroups'), {
+          ...payload,
+          createdAt: timestamp,
+        })
+        addToast(`${taskGroupDraft.title} added to Tasks.`, 'success')
+      }
+
+      setIsTaskGroupModalOpen(false)
+      setActiveTaskGroup(null)
+    } catch {
+      addToast('Unable to save that task group right now.', 'error')
+    } finally {
+      setIsSavingTaskGroup(false)
+    }
+  }
+
+  async function handleUpdateTaskGroupTasks(taskGroup, tasks) {
+    if (!user) {
+      addToast('You need to be signed in to update tasks.', 'error')
+      throw new Error('Authentication required')
+    }
+
+    try {
+      await updateDoc(
+        doc(db, 'users', user.uid, 'taskGroups', taskGroup.id),
+        {
+          tasks,
+          lastUpdatedAt: Timestamp.now(),
+        },
+      )
+    } catch (error) {
+      addToast('Unable to update that to-do point right now.', 'error')
+      throw error
+    }
+  }
+
+  async function handleDeleteTaskGroup() {
+    if (!user || !taskGroupToDelete) {
+      return
+    }
+
+    try {
+      await deleteDoc(
+        doc(db, 'users', user.uid, 'taskGroups', taskGroupToDelete.id),
+      )
+      addToast(`${taskGroupToDelete.title} removed.`, 'success')
+      setTaskGroupToDelete(null)
+    } catch {
+      addToast('Unable to remove that task group right now.', 'error')
+    }
+  }
+
   if (authLoading || limitsLoading) {
     return (
       <div
@@ -678,15 +871,20 @@ export default function DashboardPage() {
               <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-2xl">
                   <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
-                    Workspace dashboard
+                    Projects workspace
                   </p>
                   <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
                     Open local coding projects faster than your dock can keep up.
                   </h1>
                   <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
                     Add your local projects manually, keep paths editable, and save
-                    a clean list of programming languages for each workspace. {planLabel}: You
-                    can only import {maxProjects} projects here.
+                    a clean list of programming languages for each workspace.
+                    {!isProPlan ? (
+                      <>
+                        {' '}
+                        {planLabel}: You can only import {maxProjects} projects here.
+                      </>
+                    ) : null}
                   </p>
                 </div>
 
@@ -734,18 +932,20 @@ export default function DashboardPage() {
                   </button>
                 </div>
               </div>
-              <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-                {hasReachedProjectLimit
-                  ? `${planLabel}: Project limit reached. Each account can only import ${maxProjects} projects here.`
-                  : `${planLabel}: ${usedProjectCount}/${maxProjects} projects used. ${remainingProjectSlots} slot${remainingProjectSlots === 1 ? '' : 's'} left.`}
-              </p>
+              {!isProPlan ? (
+                <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                  {hasReachedProjectLimit
+                    ? `${planLabel}: Project limit reached. Each account can only import ${maxProjects} projects here.`
+                    : `${planLabel}: ${usedProjectCount}/${maxProjects} projects used. ${remainingProjectSlots} slot${remainingProjectSlots === 1 ? '' : 's'} left.`}
+                </p>
+              ) : null}
             </>
           ) : dashboardMode === 'launchpad' ? (
             <>
               <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-2xl">
                   <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
-                    Workspace dashboard
+                    Launchpad workspace
                   </p>
                   <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
                     Open your go-to web platforms without digging through bookmarks.
@@ -776,18 +976,20 @@ export default function DashboardPage() {
                   </button>
                 </div>
               </div>
-              <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-                {hasReachedWebsiteLimit
-                  ? `${planLabel}: Website limit reached. Each account can only save ${maxWebsites} shortcuts here.`
-                  : `${usedWebsiteCount}/${maxWebsites} websites used. ${remainingWebsiteSlots} slot${remainingWebsiteSlots === 1 ? '' : 's'} left.`}
-              </p>
+              {!isProPlan ? (
+                <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                  {hasReachedWebsiteLimit
+                    ? `${planLabel}: Website limit reached. Each account can only save ${maxWebsites} shortcuts here.`
+                    : `${usedWebsiteCount}/${maxWebsites} websites used. ${remainingWebsiteSlots} slot${remainingWebsiteSlots === 1 ? '' : 's'} left.`}
+                </p>
+              ) : null}
             </>
-          ) : (
+          ) : dashboardMode === 'notes' ? (
             <>
               <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-2xl">
                   <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
-                    Workspace dashboard
+                    Notes workspace
                   </p>
                   <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
                     Keep snippets, SQL, config blocks, and text notes one click away.
@@ -834,23 +1036,77 @@ export default function DashboardPage() {
                   </button>
                 </div>
               </div>
-              <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-                {hasReachedNoteLimit
-                  ? `${planLabel}: Note limit reached. Each account can only save ${maxNotes} notes here.`
-                  : `${planLabel}: ${usedNoteCount}/${maxNotes} notes used. ${remainingNoteSlots} slot${remainingNoteSlots === 1 ? '' : 's'} left.`}
-              </p>
+              {!isProPlan ? (
+                <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                  {hasReachedNoteLimit
+                    ? `${planLabel}: Note limit reached. Each account can only save ${maxNotes} notes here.`
+                    : `${planLabel}: ${usedNoteCount}/${maxNotes} notes used. ${remainingNoteSlots} slot${remainingNoteSlots === 1 ? '' : 's'} left.`}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                <div className="max-w-2xl">
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+                    Tasks workspace
+                  </p>
+                  <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                    Turn bigger goals into focused, trackable to-do groups.
+                  </h1>
+                  <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                    Group related work, keep the context beside it, and move each
+                    point from not started to done without losing the bigger picture.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[26rem]">
+                  <div className="rounded-2xl bg-blue-50 px-4 py-3 dark:bg-blue-500/10">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700 dark:text-blue-200">
+                      Groups
+                    </p>
+                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                      {usedTaskGroupCount}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-inset ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                      Points
+                    </p>
+                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                      {totalTaskPointCount}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-inset ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                      Done
+                    </p>
+                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                      {completedTaskPointCount}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openTaskGroupComposer()}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+                  >
+                    <ListTodo className="h-4 w-4" />
+                    Add group
+                  </button>
+                </div>
+              </div>
             </>
           )}
         </section>
 
-        <div className="flex w-fit gap-1 rounded-2xl border border-gray-100 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex w-fit max-w-full gap-1 overflow-x-auto rounded-2xl border border-gray-100 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <button
             type="button"
             onClick={() => setDashboardMode('projects')}
             className={
               dashboardMode === 'projects'
-                ? 'rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition'
-                : 'rounded-xl px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'
+                ? 'shrink-0 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition'
+                : 'shrink-0 rounded-xl px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'
             }
           >
             Projects
@@ -860,8 +1116,8 @@ export default function DashboardPage() {
             onClick={() => setDashboardMode('launchpad')}
             className={
               dashboardMode === 'launchpad'
-                ? 'rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition'
-                : 'rounded-xl px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'
+                ? 'shrink-0 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition'
+                : 'shrink-0 rounded-xl px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'
             }
           >
             Launchpad
@@ -871,11 +1127,22 @@ export default function DashboardPage() {
             onClick={() => setDashboardMode('notes')}
             className={
               dashboardMode === 'notes'
-                ? 'rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition'
-                : 'rounded-xl px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'
+                ? 'shrink-0 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition'
+                : 'shrink-0 rounded-xl px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'
             }
           >
             Notes
+          </button>
+          <button
+            type="button"
+            onClick={() => setDashboardMode('tasks')}
+            className={
+              dashboardMode === 'tasks'
+                ? 'shrink-0 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition'
+                : 'shrink-0 rounded-xl px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'
+            }
+          >
+            Tasks
           </button>
         </div>
 
@@ -891,8 +1158,13 @@ export default function DashboardPage() {
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
                   Enter the local project path, optionally rename the card, and
-                  choose the programming languages you want displayed. {planLabel}: You can
-                  only import {maxProjects} projects here.
+                  choose the programming languages you want displayed.
+                  {!isProPlan ? (
+                    <>
+                      {' '}
+                      {planLabel}: You can only import {maxProjects} projects here.
+                    </>
+                  ) : null}
                 </p>
               </div>
 
@@ -1027,9 +1299,11 @@ export default function DashboardPage() {
                   The project card will show these as a language list. No file
                   scanning or percentage breakdown will be generated.
                 </p>
-                <p className="text-sm font-medium text-blue-700 dark:text-blue-200">
-                  {`${usedProjectCount}/${maxProjects} projects used. ${remainingProjectSlots} slot${remainingProjectSlots === 1 ? '' : 's'} left.`}
-                </p>
+                {!isProPlan ? (
+                  <p className="text-sm font-medium text-blue-700 dark:text-blue-200">
+                    {`${usedProjectCount}/${maxProjects} projects used. ${remainingProjectSlots} slot${remainingProjectSlots === 1 ? '' : 's'} left.`}
+                  </p>
+                ) : null}
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                   {`Default env on add: ${DEFAULT_PROJECT_ENVIRONMENTS[0]}`}
                 </p>
@@ -1074,6 +1348,7 @@ export default function DashboardPage() {
             maxWebsites={maxWebsites}
             usedWebsites={usedWebsiteCount}
             hasReachedLimit={hasReachedWebsiteLimit}
+            isUnlimited={isProPlan}
           />
         ) : null}
 
@@ -1087,6 +1362,37 @@ export default function DashboardPage() {
             }}
             onSubmit={handleSaveNote}
             isSaving={isSavingNote}
+          />
+        ) : null}
+
+        {isTaskGroupModalOpen ? (
+          <TaskGroupModal
+            open={isTaskGroupModalOpen}
+            taskGroup={activeTaskGroup}
+            onClose={() => {
+              setIsTaskGroupModalOpen(false)
+              setActiveTaskGroup(null)
+            }}
+            onSubmit={handleSaveTaskGroup}
+            isSaving={isSavingTaskGroup}
+          />
+        ) : null}
+
+        <ConfirmDialog
+          open={Boolean(taskGroupToDelete)}
+          title="Remove task group?"
+          message={`Are you sure you want to remove ${taskGroupToDelete?.title ?? 'this task group'}? This will also remove every to-do point inside it.`}
+          onConfirm={handleDeleteTaskGroup}
+          onCancel={() => setTaskGroupToDelete(null)}
+        />
+
+        {isEditorManagerOpen ? (
+          <EditorManagerModal
+            open={isEditorManagerOpen}
+            editors={customEditors}
+            onClose={() => setIsEditorManagerOpen(false)}
+            onSave={handleSaveCustomEditors}
+            isSaving={isSavingCustomEditors}
           />
         ) : null}
 
@@ -1129,8 +1435,13 @@ export default function DashboardPage() {
                 </h2>
                 <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
                   Add your first project manually by saving its local path and the
-                  programming languages you want shown on the card. {planLabel}: You can only
-                  import {maxProjects} projects here.
+                  programming languages you want shown on the card.
+                  {!isProPlan ? (
+                    <>
+                      {' '}
+                      {planLabel}: You can only import {maxProjects} projects here.
+                    </>
+                  ) : null}
                 </p>
                 <button
                   type="button"
@@ -1183,6 +1494,8 @@ export default function DashboardPage() {
                       onDelete={handleDeleteProject}
                       onTagClick={setFilterTag}
                       addToast={addToast}
+                      customEditors={customEditors}
+                      onManageEditors={() => setIsEditorManagerOpen(true)}
                     />
                   ))}
                 </div>
@@ -1208,6 +1521,8 @@ export default function DashboardPage() {
                       onDelete={handleDeleteProject}
                       onTagClick={setFilterTag}
                       addToast={addToast}
+                      customEditors={customEditors}
+                      onManageEditors={() => setIsEditorManagerOpen(true)}
                     />
                   ))}
                 </div>
@@ -1300,6 +1615,129 @@ export default function DashboardPage() {
               onTagClick={setNotesFilterTag}
               addToast={addToast}
             />
+          </div>
+        ) : dashboardMode === 'tasks' ? (
+          <div className="grid gap-5">
+            <section className="grid gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <SearchBar
+                value={tasksSearch}
+                onChange={(event) => setTasksSearch(event.target.value)}
+                inputRef={tasksSearchInputRef}
+                placeholder="Search task groups, points, notes, or tags...."
+              />
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="grid gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                    Filter by status
+                  </span>
+                  <select
+                    value={tasksFilterStatus}
+                    onChange={(event) => setTasksFilterStatus(event.target.value)}
+                    className="rounded-2xl border border-white/70 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-800 dark:bg-slate-900 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                  >
+                    <option value="all">All statuses</option>
+                    {TASK_STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                    Filter by tag
+                  </span>
+                  <select
+                    value={tasksFilterTag}
+                    onChange={(event) => setTasksFilterTag(event.target.value)}
+                    className="rounded-2xl border border-white/70 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-800 dark:bg-slate-900 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                  >
+                    <option value="all">All tags</option>
+                    {availableTaskTags.map((tag) => (
+                      <option key={tag} value={tag}>
+                        {tag}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </section>
+
+            {taskGroupsLoading ? (
+              <section className="grid gap-6 lg:grid-cols-2">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <TaskGroupSkeletonCard key={`task-skeleton-${index}`} />
+                ))}
+              </section>
+            ) : null}
+
+            {!taskGroupsLoading && taskGroups.length === 0 ? (
+              <section className="overflow-hidden rounded-3xl border border-dashed border-blue-200 bg-white p-8 text-center shadow-sm dark:border-blue-500/20 dark:bg-slate-900 sm:p-12">
+                <div className="mx-auto flex h-20 w-20 rotate-3 items-center justify-center rounded-[2rem] bg-gradient-to-br from-blue-600 to-cyan-400 text-white shadow-lg shadow-blue-200 dark:shadow-none">
+                  <ListTodo className="h-10 w-10" />
+                </div>
+                <p className="mt-6 text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+                  A clear starting point
+                </p>
+                <h2 className="mt-3 text-2xl font-bold text-slate-900 dark:text-white">
+                  Create your first task group.
+                </h2>
+                <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  Add a title, context, tags, and the to-do points that will move
+                  this piece of work forward.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => openTaskGroupComposer()}
+                  className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+                >
+                  <ListTodo className="h-4 w-4" />
+                  Create first group
+                </button>
+              </section>
+            ) : null}
+
+            {!taskGroupsLoading &&
+            taskGroups.length > 0 &&
+            visibleTaskGroups.length === 0 ? (
+              <section className="rounded-2xl border border-gray-100 bg-white p-10 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <SearchX className="mx-auto h-12 w-12 text-slate-400 dark:text-slate-500" />
+                <h2 className="mt-4 text-2xl font-bold text-slate-900 dark:text-white">
+                  No task groups match these filters.
+                </h2>
+                <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+                  Try a different search, status, or tag.
+                </p>
+              </section>
+            ) : null}
+
+            {!taskGroupsLoading && visibleTaskGroups.length > 0 ? (
+              <section className="grid gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                    Task groups
+                  </h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    {visibleTaskGroups.length} group
+                    {visibleTaskGroups.length === 1 ? '' : 's'} in view
+                  </p>
+                </div>
+                <div className="grid items-start gap-6 lg:grid-cols-2">
+                  {visibleTaskGroups.map((taskGroup) => (
+                    <TaskGroupCard
+                      key={taskGroup.id}
+                      taskGroup={taskGroup}
+                      onEdit={openTaskGroupComposer}
+                      onDelete={setTaskGroupToDelete}
+                      onUpdateTasks={handleUpdateTaskGroupTasks}
+                      onSelectTag={setTasksFilterTag}
+                    />
+                  ))}
+                </div>
+              </section>
+            ) : null}
           </div>
         ) : (
           <div className="grid gap-4">

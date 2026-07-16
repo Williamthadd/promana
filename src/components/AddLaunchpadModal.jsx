@@ -17,6 +17,7 @@ export default function AddLaunchpadModal({
   maxWebsites,
   usedWebsites,
   hasReachedLimit,
+  isUnlimited = false,
 }) {
   const [formState, setFormState] = useState({
     name: '',
@@ -31,6 +32,7 @@ export default function AddLaunchpadModal({
     () => getLaunchpadCategoryOptions([formState.category]),
     [formState.category],
   )
+  const hasEffectiveLimit = !isUnlimited && hasReachedLimit
   const remainingWebsiteSlots = Math.max(0, maxWebsites - usedWebsites)
 
   function resetForm() {
@@ -87,7 +89,7 @@ export default function AddLaunchpadModal({
       return
     }
 
-    if (hasReachedLimit) {
+    if (hasEffectiveLimit) {
       addToast(
         `You can only save ${maxWebsites} website shortcuts here. Remove one before adding another.`,
         'error',
@@ -304,11 +306,13 @@ export default function AddLaunchpadModal({
           />
         </label>
 
-        <div className="grid gap-2">
-          <p className="text-sm font-medium text-blue-700 dark:text-blue-200">
-            {`${usedWebsites}/${maxWebsites} websites used. ${remainingWebsiteSlots} slot${remainingWebsiteSlots === 1 ? '' : 's'} left.`}
-          </p>
-        </div>
+        {!isUnlimited ? (
+          <div className="grid gap-2">
+            <p className="text-sm font-medium text-blue-700 dark:text-blue-200">
+              {`${usedWebsites}/${maxWebsites} websites used. ${remainingWebsiteSlots} slot${remainingWebsiteSlots === 1 ? '' : 's'} left.`}
+            </p>
+          </div>
+        ) : null}
 
         <div className="flex flex-wrap justify-end gap-3">
           <button
@@ -320,7 +324,7 @@ export default function AddLaunchpadModal({
           </button>
           <button
             type="submit"
-            disabled={isSaving || hasReachedLimit}
+            disabled={isSaving || hasEffectiveLimit}
             className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-80"
           >
             {isSaving ? (
@@ -328,7 +332,7 @@ export default function AddLaunchpadModal({
             ) : (
               <>
                 <FolderPlus className="h-4 w-4" />
-                {hasReachedLimit ? 'Website limit reached' : 'Add shortcut'}
+                {hasEffectiveLimit ? 'Website limit reached' : 'Add shortcut'}
               </>
             )}
           </button>
