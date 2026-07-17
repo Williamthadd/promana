@@ -167,7 +167,7 @@ export default function AiWorkspace({
   const suggestions = [
     { label: 'Summarize tasks today', prompt: 'What are my tasks for Today?' },
     { label: 'Search note', prompt: 'How many notes i save in my ProMana?' },
-    { label: 'Find project', prompt: 'What is the recent project i just saved in muy pOomNna?' },
+    { label: 'Find project', prompt: 'What is the recent project i just saved in my ProMana?' },
     { label: 'List shortcuts/links', prompt: 'which design tool launchpad or link shortcuts do I have saved?' }
   ]
 
