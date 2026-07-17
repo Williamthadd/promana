@@ -14,9 +14,11 @@ import {
   LoaderCircle,
   SearchX,
   StickyNote,
+  Sparkles,
   X,
 } from 'lucide-react'
 import AddLaunchpadModal from '../components/AddLaunchpadModal'
+import AiWorkspace from '../components/AiWorkspace'
 import CalendarEntryModal from '../components/CalendarEntryModal'
 import CalendarWorkspace from '../components/CalendarWorkspace'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -1389,7 +1391,7 @@ export default function DashboardPage() {
                 </p>
               ) : null}
             </>
-          ) : (
+          ) : dashboardMode === 'calendar' ? (
             <>
               <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-2xl">
@@ -1452,6 +1454,23 @@ export default function DashboardPage() {
                 </p>
               ) : null}
             </>
+          ) : (
+            <>
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                <div className="max-w-2xl">
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+                    Ask AI workspace
+                  </p>
+                  <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                    Supercharge your productivity with ProMana AI.
+                  </h1>
+                  <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                    Ask questions about your projects, notes, task timeline, or calendar schedules,
+                    and get instant structured insights.
+                  </p>
+                </div>
+              </div>
+            </>
           )}
         </section>
 
@@ -1510,6 +1529,17 @@ export default function DashboardPage() {
             }
           >
             Calendar
+          </button>
+          <button
+            type="button"
+            onClick={() => setDashboardMode('ai')}
+            className={
+              dashboardMode === 'ai'
+                ? 'shrink-0 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition'
+                : 'shrink-0 rounded-xl px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'
+            }
+          >
+            Ask AI
           </button>
         </div>
 
@@ -2141,6 +2171,36 @@ export default function DashboardPage() {
             onDelete={setCalendarEntryToDelete}
             onOpenProject={openCalendarLinkedProject}
             onOpenTaskGroup={openCalendarLinkedTaskGroup}
+          />
+        ) : dashboardMode === 'ai' ? (
+          <AiWorkspace
+            projects={projects}
+            launchpadItems={launchpadItems}
+            notes={notes}
+            taskGroups={taskGroups}
+            calendarEntries={calendarEntries}
+            onDeleteProject={handleDeleteProject}
+            onEditProject={(project) => {
+              setProjectDraft({
+                id: project.id,
+                displayName: project.displayName ?? '',
+                absolutePath: project.absolutePath ?? '',
+                repositoryUrl: project.repositoryUrl ?? '',
+                languagesList: project.languagesList ?? [],
+                customLanguage: '',
+              })
+              setIsManualImportOpen(true)
+            }}
+            onDeleteNote={handleDeleteNote}
+            onEditNote={openNoteComposer}
+            onToggleNotePin={handleToggleNotePin}
+            onDeleteTaskGroup={setTaskGroupToDelete}
+            onEditTaskGroup={openTaskGroupComposer}
+            onUpdateTaskGroupTasks={handleUpdateTaskGroupTasks}
+            onDeleteLaunchpadItem={handleDeleteLaunchpadItem}
+            onUpdateLaunchpadItem={handleUpdateLaunchpadItem}
+            onToggleLaunchpadPin={handleToggleLaunchpadPin}
+            addToast={addToast}
           />
         ) : (
           <div className="grid gap-4">
