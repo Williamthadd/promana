@@ -296,7 +296,7 @@ export default function AiWorkspace({
                     )}
                     <div className="max-w-[85%] space-y-4">
                       <div
-                        className={`rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${
+                        className={`rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm break-words ${
                           isUser
                             ? 'bg-blue-600 text-white'
                             : m.isError
