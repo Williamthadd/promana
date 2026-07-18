@@ -607,9 +607,9 @@ export default function AiWorkspace({
             <button
               type="submit"
               disabled={loading || isRestoring || !prompt.trim()}
-              className="absolute right-2 top-2 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white transition duration-200 hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 cursor-pointer shadow-md shadow-blue-500/10 hover:scale-[1.03]"
+              className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white transition duration-200 hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 cursor-pointer shadow-md shadow-blue-500/10 hover:scale-[1.03]"
             >
-              <Send className="h-5 w-5" />
+              <Send className="h-4 w-4" />
             </button>
           </div>
         </form>
