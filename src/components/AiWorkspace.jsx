@@ -443,36 +443,40 @@ export default function AiWorkspace({
 
                         {/* Visual Results Cards Render Block */}
                         {!isUser && m.results && m.results.length > 0 && (
-                          <div className="grid gap-5 mt-4 w-full">
+                          <div className="flex flex-col w-full mt-4">
                             {m.results.map((result, rIdx) => {
+                              const separatorClass = rIdx > 0 ? 'pt-6 mt-4 border-t border-slate-200/50 dark:border-white/5' : ''
+
                               if (result.type === 'calendar_date') {
                                 // Find matching entries
-                                const matchedEntries = calendarEntries.filter(entry => 
+                                const matchedEntries = calendarEntries.filter(entry =>
                                   result.matchedIds?.includes(entry.id) || entry.dateKey === result.date
                                 )
                                 return (
-                                  <div key={rIdx} className="rounded-3xl border border-slate-200/50 dark:border-white/5 bg-white/40 dark:bg-slate-950/20 p-6 shadow-md space-y-4">
-                                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400">
-                                      <Calendar className="h-4 w-4" />
-                                      <span>Schedule: {result.date}</span>
-                                    </div>
-                                    {matchedEntries.length === 0 ? (
-                                      <p className="text-xs text-slate-400 dark:text-slate-500">No scheduled tasks saved on this date.</p>
-                                    ) : (
-                                      <div className="space-y-2">
-                                        {matchedEntries.map(entry => (
-                                          <div key={entry.id} className="flex items-center justify-between rounded-2xl bg-slate-100/50 p-4 text-xs dark:bg-slate-800/40 border border-slate-200/30 dark:border-white/5">
-                                            <div className="flex flex-col gap-1">
-                                              <span className="font-bold text-slate-900 dark:text-white">{entry.title}</span>
-                                              {entry.notes && <span className="text-[11px] text-slate-400 dark:text-slate-500">{entry.notes}</span>}
-                                            </div>
-                                            <span className="shrink-0 rounded-lg bg-blue-100/60 px-2.5 py-1 text-[10px] font-bold text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
-                                              {entry.startTime || 'All day'}
-                                            </span>
-                                          </div>
-                                        ))}
+                                  <div key={rIdx} className={separatorClass}>
+                                    <div className="rounded-3xl border border-slate-200/50 dark:border-white/5 bg-white/40 dark:bg-slate-950/20 p-6 shadow-md space-y-4">
+                                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400">
+                                        <Calendar className="h-4 w-4" />
+                                        <span>Schedule: {result.date}</span>
                                       </div>
-                                    )}
+                                      {matchedEntries.length === 0 ? (
+                                        <p className="text-xs text-slate-400 dark:text-slate-500">No scheduled tasks saved on this date.</p>
+                                      ) : (
+                                        <div className="space-y-2">
+                                          {matchedEntries.map(entry => (
+                                            <div key={entry.id} className="flex items-center justify-between rounded-2xl bg-slate-100/50 p-4 text-xs dark:bg-slate-800/40 border border-slate-200/30 dark:border-white/5">
+                                              <div className="flex flex-col gap-1">
+                                                <span className="font-bold text-slate-900 dark:text-white">{entry.title}</span>
+                                                {entry.notes && <span className="text-[11px] text-slate-400 dark:text-slate-500">{entry.notes}</span>}
+                                              </div>
+                                              <span className="shrink-0 rounded-lg bg-blue-100/60 px-2.5 py-1 text-[10px] font-bold text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
+                                                {entry.startTime || 'All day'}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 )
                               }
@@ -481,8 +485,8 @@ export default function AiWorkspace({
                                 const proj = projects.find(p => p.id === result.id)
                                 if (!proj) return null
                                 return (
-                                  <div key={rIdx} className="w-full max-w-md">
-                                    <div className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400">
+                                  <div key={rIdx} className={`w-full max-w-md ${separatorClass}`}>
+                                    <div className="mb-4 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400">
                                       <Folder className="h-4 w-4" />
                                       <span>Matched Project</span>
                                     </div>
@@ -499,8 +503,8 @@ export default function AiWorkspace({
                                 const nt = notes.find(n => n.id === result.id)
                                 if (!nt) return null
                                 return (
-                                  <div key={rIdx} className="w-full max-w-md">
-                                    <div className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">
+                                  <div key={rIdx} className={`w-full max-w-md ${separatorClass}`}>
+                                    <div className="mb-4 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">
                                       <StickyNote className="h-4 w-4" />
                                       <span>Matched Note / Code Snippet</span>
                                     </div>
@@ -519,8 +523,8 @@ export default function AiWorkspace({
                                 const tg = taskGroups.find(t => t.id === result.id)
                                 if (!tg) return null
                                 return (
-                                  <div key={rIdx} className="w-full max-w-md">
-                                    <div className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
+                                  <div key={rIdx} className={`w-full max-w-md ${separatorClass}`}>
+                                    <div className="mb-4 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
                                       <ListTodo className="h-4 w-4" />
                                       <span>Matched Tasks</span>
                                     </div>
@@ -538,8 +542,8 @@ export default function AiWorkspace({
                                 const lp = launchpadItems.find(l => l.id === result.id)
                                 if (!lp) return null
                                 return (
-                                  <div key={rIdx} className="w-full max-w-md">
-                                    <div className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.2em] text-purple-600 dark:text-purple-400">
+                                  <div key={rIdx} className={`w-full max-w-md ${separatorClass}`}>
+                                    <div className="mb-4 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.2em] text-purple-600 dark:text-purple-400">
                                       <ExternalLink className="h-4 w-4" />
                                       <span>Matched Launchpad Link</span>
                                     </div>
