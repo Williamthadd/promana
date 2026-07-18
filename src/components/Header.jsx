@@ -51,17 +51,17 @@ export default function Header({
 
   return (
     <header
-      className="sticky top-0 z-30 border-b border-blue-200/60 backdrop-blur dark:border-slate-800 dark:bg-slate-950/85"
+      className="sticky top-0 z-30 border-b border-white/20 dark:border-white/5 backdrop-blur-md shadow-sm bg-white/40 dark:bg-slate-950/40"
       style={
         darkMode
           ? undefined
-          : { backgroundColor: toBackgroundRgba(lightBackgroundColor, 0.85) }
+          : { backgroundColor: toBackgroundRgba(lightBackgroundColor, 0.4) }
       }
     >
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4 lg:px-8">
         <Link to="/dashboard" className="inline-flex items-center">
           <BrandMark
-            logoClassName="h-10 w-10 sm:h-15 sm:w-15"
+            logoClassName="h-10 w-10 sm:h-15 sm:w-15 hover:scale-105 transition-transform"
             titleClassName="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white"
           />
         </Link>
@@ -77,7 +77,7 @@ export default function Header({
           <button
             type="button"
             onClick={onToggleDark}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/70 bg-white text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:text-white sm:h-11 sm:w-11"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/40 dark:border-white/10 glass-panel-light dark:glass-panel-dark text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:scale-[1.02] hover:text-slate-950 dark:text-slate-200 dark:hover:text-white sm:h-11 sm:w-11"
             aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {darkMode ? (
@@ -91,7 +91,7 @@ export default function Header({
             <button
               type="button"
               onClick={() => setIsOpen((current) => !current)}
-              className="flex items-center gap-2 px-2 py-1.5 text-left shadow-sm transition hover:-translate-y-0.5 sm:gap-3 sm:px-3 sm:py-2 rounded-full border border-white/70 bg-white dark:border-slate-800 dark:bg-slate-900"
+              className="flex items-center gap-2 px-2 py-1.5 text-left shadow-sm transition hover:-translate-y-0.5 sm:gap-3 sm:px-3 sm:py-2 rounded-full border border-white/40 dark:border-white/10 glass-panel-light dark:glass-panel-dark"
             >
               <UserAvatar
                 user={user}
@@ -113,7 +113,7 @@ export default function Header({
             </button>
 
             {isOpen ? (
-              <div className="absolute right-0 mt-3 w-[calc(100vw-2rem)] max-w-xs rounded-2xl border border-gray-100 bg-white p-4 shadow-xl dark:border-slate-800 dark:bg-slate-900 sm:w-72">
+              <div className="absolute right-0 mt-3 w-[calc(100vw-2rem)] max-w-xs rounded-2xl border border-white/40 dark:border-white/10 glass-panel-light dark:glass-panel-dark p-4 shadow-xl sm:w-72">
                 <div className="flex items-center gap-3">
                   <UserAvatar
                     user={user}

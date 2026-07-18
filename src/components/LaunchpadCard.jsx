@@ -263,7 +263,7 @@ export default function LaunchpadCard({
 
   return (
     <>
-      <article className="relative flex h-full flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900">
+      <article className="relative flex h-full flex-col gap-5 rounded-3xl p-6 transition-all duration-300 glass-panel-light dark:glass-panel-dark shadow-md hover:shadow-xl hover:-translate-y-1 hover:scale-[1.015] border border-white/50 dark:border-white/10 hover:border-blue-500/30 dark:hover:border-blue-400/30">
         <div className="flex items-start justify-between gap-3">
           <LaunchpadFavicon url={item.url} name={item.name} size={48} />
 

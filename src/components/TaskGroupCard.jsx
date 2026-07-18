@@ -65,7 +65,7 @@ export default function TaskGroupCard({
   return (
     <article
       id={`task-group-card-${taskGroup.id}`}
-      className="flex min-h-full scroll-mt-24 flex-col overflow-hidden rounded-3xl border border-white/80 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-slate-800 dark:bg-slate-900"
+      className="flex min-h-full scroll-mt-24 flex-col overflow-hidden rounded-3xl transition-all duration-300 glass-panel-light dark:glass-panel-dark shadow-md hover:shadow-xl hover:-translate-y-1 hover:scale-[1.015] border border-white/50 dark:border-white/10 hover:border-blue-500/30 dark:hover:border-blue-400/30"
     >
       <div className="flex flex-1 flex-col p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">

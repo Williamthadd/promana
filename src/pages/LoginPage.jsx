@@ -237,11 +237,16 @@ export default function LoginPage() {
 
   return (
     <div
-      className="relative min-h-screen overflow-hidden px-4 py-12 dark:bg-slate-950"
+      className={`relative min-h-screen overflow-hidden px-4 py-12 flex items-center justify-center transition-all duration-500 ${
+        darkMode ? 'bg-mesh-dark text-slate-100' : 'bg-mesh-light text-slate-900'
+      }`}
       style={darkMode ? undefined : { backgroundColor: lightBackgroundColor }}
     >
-      <div className="absolute -left-24 top-8 h-64 w-64 rounded-full bg-white/40 blur-3xl dark:bg-blue-500/10" />
-      <div className="absolute -right-20 bottom-10 h-72 w-72 rounded-full bg-blue-300/40 blur-3xl dark:bg-cyan-500/10" />
+      {/* Decorative Neon Glow Blobs */}
+      <div className="absolute -left-20 top-10 h-80 w-80 rounded-full bg-blue-500/20 blur-3xl dark:bg-blue-500/15 animate-pulse duration-5000" />
+      <div className="absolute -right-20 bottom-10 h-96 w-96 rounded-full bg-cyan-500/20 blur-3xl dark:bg-cyan-500/15 animate-pulse duration-5000" />
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-72 w-72 rounded-full bg-indigo-500/10 blur-3xl dark:bg-indigo-500/5" />
+
       <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
         <BackgroundColorControl
           darkMode={darkMode}
@@ -251,54 +256,63 @@ export default function LoginPage() {
         />
       </div>
 
-      <div className="relative mx-auto flex min-h-[calc(100vh-6rem)] max-w-md flex-col items-center justify-center">
+      <div className="relative mx-auto flex min-h-[calc(100vh-6rem)] w-full max-w-md flex-col items-center justify-center z-10">
         <BrandMark
-          className="mb-6"
-          logoClassName="h-20 w-20 rounded-[1.75rem] object-cover shadow-xl ring-1 ring-black/5 dark:ring-white/10"
-          titleClassName="text-4xl font-black tracking-tight text-slate-900 dark:text-white"
+          className="mb-8 hover:scale-105 transition-transform duration-300"
+          logoClassName="h-20 w-20 rounded-3xl object-cover shadow-2xl ring-2 ring-blue-500/20 dark:ring-blue-400/30 neon-glow-blue"
+          titleClassName="text-4xl font-extrabold tracking-tight bg-gradient-to-r from-slate-900 via-blue-600 to-slate-900 bg-clip-text text-transparent dark:from-white dark:via-blue-400 dark:to-white"
         />
 
-        <div className="w-full rounded-2xl border border-gray-100 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
-          <div className="mb-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
-              Local project launcher
+        <div className="w-full rounded-3xl p-8 transition-all duration-500 glass-panel-light dark:glass-panel-dark shadow-2xl hover:shadow-blue-500/10 dark:hover:shadow-blue-500/5 hover:scale-[1.01] border border-white/40 dark:border-white/10">
+          <div className="mb-8">
+            <p className="text-xs font-bold uppercase tracking-[0.25em] text-blue-600 dark:text-blue-400">
+              Developer Workspace Launcher
             </p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
               {authMode === 'login' ? 'Welcome back' : 'Create your account'}
             </h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Manage your local environments, notes, and targets.
+            </p>
           </div>
 
-          <form className="grid gap-4" onSubmit={handleEmailSubmit}>
-            <div className="grid gap-1">
+          <form className="grid gap-5" onSubmit={handleEmailSubmit}>
+            <div className="grid gap-1.5">
+              <label className="text-xs font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400 px-1">
+                Email Address
+              </label>
               <input
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="Email address"
-                className="rounded-2xl border border-gray-200 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                placeholder="developer@example.com"
+                className="rounded-2xl border border-slate-200/80 bg-white/60 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 dark:border-slate-700/80 dark:bg-slate-950/40 dark:text-white dark:focus:border-blue-400 dark:focus:bg-slate-950 dark:focus:ring-blue-500/10"
                 required
               />
-              <p className="px-1 text-xs text-slate-400 dark:text-slate-500">
-                dummy: user@gmail.com
+              <p className="px-1 text-[11px] text-slate-400 dark:text-slate-500">
+                demo credentials: user@gmail.com
               </p>
             </div>
 
-            <div className="grid gap-1">
+            <div className="grid gap-1.5">
+              <label className="text-xs font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400 px-1">
+                Password
+              </label>
               <input
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="Password"
-                className="rounded-2xl border border-gray-200 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                placeholder="••••••••"
+                className="rounded-2xl border border-slate-200/80 bg-white/60 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 dark:border-slate-700/80 dark:bg-slate-950/40 dark:text-white dark:focus:border-blue-400 dark:focus:bg-slate-950 dark:focus:ring-blue-500/10"
                 required
               />
-              <p className="px-1 text-xs text-slate-400 dark:text-slate-500">
-                dummy: password
+              <p className="px-1 text-[11px] text-slate-400 dark:text-slate-500">
+                demo credentials: password
               </p>
             </div>
 
             {errorMessage ? (
-              <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+              <p className="rounded-2xl border border-red-200 bg-red-50/80 backdrop-blur px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
                 {errorMessage}
               </p>
             ) : null}
@@ -306,48 +320,48 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-80"
+              className="relative overflow-hidden inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3.5 font-bold text-white transition-all hover:brightness-110 active:scale-[0.98] shadow-md hover:shadow-blue-500/20 disabled:cursor-not-allowed disabled:opacity-80 text-sm cursor-pointer"
             >
               {loading ? (
                 <LoaderCircle className="h-5 w-5 animate-spin" />
               ) : null}
-              {authMode === 'login' ? 'Login' : 'Create account'}
+              {authMode === 'login' ? 'Launch Workspace' : 'Create Account'}
             </button>
           </form>
 
-          <div className="my-5 flex items-center gap-3">
-            <div className="h-px flex-1 bg-gray-200 dark:bg-slate-700" />
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-              or
+          <div className="my-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-slate-200/80 dark:bg-slate-800" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
+              or connect with
             </span>
-            <div className="h-px flex-1 bg-gray-200 dark:bg-slate-700" />
+            <div className="h-px flex-1 bg-slate-200/80 dark:bg-slate-800" />
           </div>
 
           <button
             type="button"
             disabled={loading}
             onClick={handleGoogleLogin}
-            className="inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-gray-200 px-4 py-3 font-semibold text-slate-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-80 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-200/80 bg-white/40 px-4 py-3.5 font-semibold text-slate-700 transition-all hover:bg-white/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-80 dark:border-slate-800 dark:text-slate-200 dark:bg-slate-900/40 dark:hover:bg-slate-900/80 text-sm cursor-pointer shadow-sm"
           >
             <GoogleIcon />
-            Google login
+            Sign in with Google
           </button>
 
-          <div className="mt-5 flex justify-end">
+          <div className="mt-6 flex justify-center">
             <button
               type="button"
               onClick={() => {
                 setAuthMode((current) => (current === 'login' ? 'signup' : 'login'))
                 setErrorMessage('')
               }}
-              className="text-sm font-medium text-blue-700 transition hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
+              className="text-sm font-semibold text-blue-600 transition-all hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
             >
-              {authMode === 'login' ? 'Sign up......' : 'Back to login'}
+              {authMode === 'login' ? 'New to ProMana? Register here' : 'Already have an account? Sign in'}
             </button>
           </div>
         </div>
 
-        <MadeByFooter className="mt-6" />
+        <MadeByFooter className="mt-8 text-slate-400 dark:text-slate-500" />
       </div>
     </div>
   )

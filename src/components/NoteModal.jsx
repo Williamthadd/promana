@@ -72,22 +72,22 @@ function NoteModalForm({ note, onClose, onSubmit, isSaving }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/55 px-4 py-4 sm:items-center sm:py-6"
+      className="calendar-modal-backdrop fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 px-3 py-3 backdrop-blur-md sm:items-center sm:px-4 sm:py-6"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-gray-100 bg-white p-5 shadow-2xl sm:max-h-[calc(100vh-3rem)] sm:p-6 dark:border-slate-800 dark:bg-slate-900"
+        className="calendar-modal-panel relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/40 dark:border-white/10 glass-panel-light dark:glass-panel-dark p-5 shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:p-7"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex shrink-0 items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+            <p className="text-sm font-bold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
               Notes workspace
             </p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950 dark:text-white sm:text-3xl">
               {isEditing ? "Edit note card" : "Add a new note card"}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+            <p className="mt-2 text-sm leading-relaxed font-medium text-slate-600 dark:text-slate-300">
               Save code snippets, SQL queries, config blocks, and plain text notes
               in one clean workspace.
             </p>
@@ -96,7 +96,7 @@ function NoteModalForm({ note, onClose, onSubmit, isSaving }) {
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-slate-500 transition hover:bg-gray-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/40 text-slate-500 transition hover:bg-white/40 disabled:opacity-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5 cursor-pointer"
             aria-label="Close note modal"
           >
             <X className="h-4 w-4" />
@@ -107,7 +107,7 @@ function NoteModalForm({ note, onClose, onSubmit, isSaving }) {
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
             <div className="grid gap-4 md:grid-cols-2">
               <label className="grid gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
                   Card title
                 </span>
                 <input
@@ -115,18 +115,18 @@ function NoteModalForm({ note, onClose, onSubmit, isSaving }) {
                   value={draft.title}
                   onChange={(event) => updateDraft("title", event.target.value)}
                   placeholder="Optional, for example User seed query"
-                  className="rounded-2xl border border-gray-200 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                  className="rounded-2xl border border-white/40 bg-white/80 px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-white/10 dark:bg-slate-950/80 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-400/20"
                 />
               </label>
 
               <label className="grid gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
                   Note type
                 </span>
                 <select
                   value={draft.type}
                   onChange={(event) => updateDraft("type", event.target.value)}
-                  className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                  className="rounded-2xl border border-white/40 bg-white/80 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-white/10 dark:bg-slate-950/80 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-400/20 cursor-pointer"
                 >
                   {NOTE_TYPE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -139,7 +139,7 @@ function NoteModalForm({ note, onClose, onSubmit, isSaving }) {
 
             <div className="grid gap-4">
               <label className="grid gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
                   Tags
                 </span>
                 <div className="relative">
@@ -149,17 +149,17 @@ function NoteModalForm({ note, onClose, onSubmit, isSaving }) {
                     value={draft.tagsText}
                     onChange={(event) => updateDraft("tagsText", event.target.value)}
                     placeholder="backend, sql, production"
-                    className="w-full rounded-2xl border border-gray-200 py-3 pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                    className="w-full rounded-2xl border border-white/40 bg-white/80 py-3 pl-11 pr-4 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-white/10 dark:bg-slate-950/80 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-400/20"
                   />
                 </div>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                   Separate tags with commas so you can filter related notes later.
                 </p>
               </label>
             </div>
 
             <label className="grid gap-2 pb-1">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+              <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
                 Content
               </span>
               <textarea
@@ -167,23 +167,23 @@ function NoteModalForm({ note, onClose, onSubmit, isSaving }) {
                 onChange={(event) => updateDraft("content", event.target.value)}
                 placeholder={getNotePlaceholder(draft.type, draft.language)}
                 rows={10}
-                className="min-h-[clamp(12rem,35vh,24rem)] w-full resize-y rounded-3xl border border-gray-200 px-4 py-4 font-mono text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                className="min-h-[clamp(12rem,35vh,24rem)] w-full resize-y rounded-3xl border border-white/40 bg-white/80 px-4 py-4 font-mono text-sm leading-relaxed text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-white/10 dark:bg-slate-950/80 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-400/20"
               />
             </label>
           </div>
 
-          <div className="mt-4 flex shrink-0 flex-wrap justify-end gap-3 border-t border-gray-100 pt-4 dark:border-slate-800">
+          <div className="mt-6 flex shrink-0 flex-wrap justify-end gap-3 border-t border-white/20 pt-4 dark:border-white/5">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              className="rounded-2xl border border-white/40 px-4 py-3 text-sm font-bold text-slate-700 bg-white/80 transition hover:bg-white dark:border-white/10 dark:text-slate-200 dark:bg-slate-950/80 dark:hover:bg-slate-950 cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-80"
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 px-5 py-3 text-sm font-bold text-white shadow-md shadow-blue-500/15 transition-all hover:brightness-110 hover:scale-[1.01] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-80 cursor-pointer"
             >
               {isSaving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
               {isSaving

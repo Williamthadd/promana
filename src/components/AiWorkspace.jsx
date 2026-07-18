@@ -3,15 +3,18 @@ import {
   Sparkles,
   Send,
   LoaderCircle,
-  HelpCircle,
-  AlertCircle,
   Clock,
   Calendar,
   Folder,
   StickyNote,
   ListTodo,
   ExternalLink,
+  Trash2,
+  Copy,
+  Check,
 } from 'lucide-react'
+// eslint-disable-next-line no-unused-vars
+import { motion, AnimatePresence } from 'motion/react'
 import ProjectCard from './ProjectCard'
 import NoteCard from './NoteCard'
 import TaskGroupCard from './TaskGroupCard'
@@ -19,6 +22,48 @@ import LaunchpadCard from './LaunchpadCard'
 
 // Daily credits limit definition
 const DAILY_LIMIT = 15
+
+// Code block copy button sub-component to handle state locally
+function CodeBlockHeader({ language, code, addToast }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopied(true)
+      addToast('Code snippet copied to clipboard!', 'success')
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      addToast('Failed to copy code snippet.', 'error')
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between bg-[#1b1c19] px-4 py-2 border-b border-[#272822]/40 text-[10px] uppercase font-mono tracking-wider text-slate-400">
+      <span className="flex items-center gap-1.5 font-bold">
+        <span className="h-2 w-2 rounded-full bg-[#a6e22e]" />
+        {language}
+      </span>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="flex items-center gap-1 hover:text-white transition-colors"
+      >
+        {copied ? (
+          <>
+            <Check className="h-3 w-3 text-[#a6e22e]" />
+            <span className="text-[#a6e22e]">Copied</span>
+          </>
+        ) : (
+          <>
+            <Copy className="h-3 w-3" />
+            <span>Copy</span>
+          </>
+        )}
+      </button>
+    </div>
+  )
+}
 
 export default function AiWorkspace({
   projects = [],
@@ -84,6 +129,7 @@ export default function AiWorkspace({
   const clearChat = () => {
     setMessages([])
     localStorage.removeItem('proman-ai-chat-history')
+    addToast('Chat history cleared successfully.', 'info')
   }
 
   // Handle credits increments
@@ -171,18 +217,83 @@ export default function AiWorkspace({
     { label: 'List shortcuts/links', prompt: 'which design tool launchpad or link shortcuts do I have saved?' }
   ]
 
+  // Beautiful monokai-style code text block highlighter
+  const renderMessageText = (text) => {
+    if (!text) return null
+
+    // Split by ``` to extract block-level code blocks
+    const parts = text.split(/(```[\s\S]*?```)/g)
+
+    return parts.map((part, index) => {
+      if (part.startsWith('```') && part.endsWith('```')) {
+        const content = part.slice(3, -3).trim()
+        const firstLineBreak = content.indexOf('\n')
+        let language = 'code'
+        let code = content
+
+        if (firstLineBreak !== -1) {
+          const potentialLang = content.slice(0, firstLineBreak).trim()
+          if (potentialLang && potentialLang.length < 15) {
+            language = potentialLang
+            code = content.slice(firstLineBreak + 1)
+          }
+        }
+
+        // Monokai-style colorizing helper
+        const highlightedCode = code
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          // Highlight common keywords (pink)
+          .replace(/\b(const|let|var|function|return|import|export|default|class|extends|if|else|for|while|try|catch)\b/g, '<span class="text-[#f92672] font-semibold">$1</span>')
+          // Highlight string literals (yellowish green)
+          .replace(/(["'])(?:(?=(\\?))\2.)*?\1/g, '<span class="text-[#e6db74]">$1$&amp;$1</span>')
+          // Highlight comments (grayish green)
+          .replace(/(\/\/.*)/g, '<span class="text-[#75715e] italic">$1</span>')
+          // Highlight custom objects/definitions (cyan)
+          .replace(/\b(db|auth|user|projects|notes|taskGroups|calendarEntries|Timestamp)\b/g, '<span class="text-[#66d9ef]">$1</span>')
+
+        return (
+          <div key={index} className="my-4 overflow-hidden rounded-2xl border border-white/10 shadow-xl bg-[#272822] text-[#f8f8f2] font-mono text-xs">
+            <CodeBlockHeader language={language} code={code} addToast={addToast} />
+            <pre className="p-4 overflow-x-auto leading-relaxed">
+              <code dangerouslySetInnerHTML={{ __html: highlightedCode }} />
+            </pre>
+          </div>
+        )
+      }
+
+      // Inline backticks highlight
+      const inlineParts = part.split(/(`[^`\n]+`)/g)
+      return (
+        <span key={index} className="whitespace-pre-wrap">
+          {inlineParts.map((inlinePart, inlineIndex) => {
+            if (inlinePart.startsWith('`') && inlinePart.endsWith('`')) {
+              return (
+                <code key={inlineIndex} className="mx-1 rounded-md bg-slate-100 dark:bg-slate-800/80 px-2 py-0.5 font-mono text-xs font-bold text-blue-600 dark:text-blue-300 border border-slate-200/40 dark:border-white/5">
+                  {inlinePart.slice(1, -1)}
+                </code>
+              )
+            }
+            return inlinePart
+          })}
+        </span>
+      )
+    })
+  }
+
   return (
     <div className="flex flex-col gap-6 lg:flex-row lg:items-stretch lg:h-[calc(100vh-210px)] min-h-[580px]">
       {/* Sidebar: AI Information and Credit Limits */}
       <aside className="flex flex-col gap-5 lg:w-80 shrink-0">
-        <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <section className="glass-panel-light dark:glass-panel-dark rounded-3xl p-6 border border-white/50 dark:border-white/10 shadow-md">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300">
-              <Sparkles className="h-5 w-5" />
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 dark:from-blue-500/20 dark:to-cyan-500/5 border border-blue-500/20 text-blue-600 dark:text-blue-300 shadow-sm">
+              <Sparkles className="h-5 w-5 animate-pulse text-blue-600 dark:text-blue-400" />
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white">ProMana Assistant</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Powered by Gemini 2.5</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">Powered by Gemini 2.5</p>
             </div>
           </div>
           <p className="mt-4 text-xs leading-5 text-slate-600 dark:text-slate-300">
@@ -191,20 +302,20 @@ export default function AiWorkspace({
         </section>
 
         {/* Credit Limits Dashboard Section */}
-        <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex-1 flex flex-col justify-between">
+        <section className="glass-panel-light dark:glass-panel-dark rounded-3xl p-6 border border-white/50 dark:border-white/10 shadow-md flex-1 flex flex-col justify-between">
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Daily API Credits</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Daily API Credits</h3>
             <div className="mt-4 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-slate-900 dark:text-white">
+              <span className="text-4xl font-black text-slate-900 dark:text-white">
                 {DAILY_LIMIT - creditsUsed}
               </span>
-              <span className="text-sm text-slate-500 dark:text-slate-400">/ {DAILY_LIMIT} remaining</span>
+              <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">/ {DAILY_LIMIT} remaining</span>
             </div>
 
             {/* Progress Bar */}
-            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+            <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
               <div
-                className={`h-full rounded-full transition-all duration-300 ${
+                className={`h-full rounded-full transition-all duration-500 ${
                   creditsUsed >= DAILY_LIMIT
                     ? 'bg-rose-500'
                     : creditsUsed > DAILY_LIMIT * 0.7
@@ -216,14 +327,14 @@ export default function AiWorkspace({
             </div>
 
             {isRestoring ? (
-              <div className="mt-4 flex gap-2 rounded-xl bg-rose-50 p-3 text-xs text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
-                <Clock className="h-4 w-4 shrink-0 mt-0.5" />
+              <div className="mt-4 flex gap-2 rounded-2xl bg-rose-50 p-4 text-xs text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+                <Clock className="h-4 w-4 shrink-0 mt-0.5 animate-pulse" />
                 <span>
                   <strong>Credit is restoring...</strong> Please try again tomorrow. Your daily credits refresh in 24 hours.
                 </span>
               </div>
             ) : (
-              <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+              <p className="mt-3 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
                 You have free access to the smart Gemini workspace assistant. Use responsibly!!
               </p>
             )}
@@ -232,215 +343,242 @@ export default function AiWorkspace({
           <button
             type="button"
             onClick={clearChat}
-            className="mt-6 w-full rounded-xl border border-gray-200 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-gray-50 hover:text-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+            className="mt-6 inline-flex items-center justify-center gap-2 w-full rounded-2xl border border-slate-200/50 dark:border-white/5 py-3 text-xs font-bold text-slate-600 dark:text-slate-400 transition-all hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white cursor-pointer"
           >
+            <Trash2 className="h-3.5 w-3.5" />
             Clear Conversation
           </button>
         </section>
       </aside>
 
       {/* Main Chat/Workspace Area */}
-      <main className="flex-1 flex flex-col rounded-3xl border border-gray-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+      <main className="flex-1 flex flex-col rounded-3xl border border-white/50 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-md shadow-xl overflow-hidden">
         {/* Chat History Header */}
-        <header className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-slate-800">
+        <header className="flex items-center justify-between border-b border-slate-100 dark:border-white/5 px-6 py-4">
           <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
+            <span className="relative flex h-2.5 w-2.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
             </span>
-            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">AI Interactive Shell</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">AI Interactive Shell</span>
           </div>
         </header>
 
         {/* Conversation Box */}
-        <div className="flex-1 p-6 overflow-y-auto space-y-6">
-          {messages.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center text-center max-w-lg mx-auto py-10">
-              <div className="flex h-16 w-16 items-center justify-center rounded-[2rem] bg-gradient-to-br from-blue-600 to-cyan-400 text-white shadow-lg shadow-blue-200 dark:shadow-none mb-6">
-                <Sparkles className="h-8 w-8" />
-              </div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">Ask your ProMana Assistant</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                Type an organic query or pick one of the sample prompt cards below to immediately lookup projects, task status, notes, or summarize calendar intervals.
-              </p>
+        <div className="flex-1 p-6 overflow-y-auto space-y-8 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+          <AnimatePresence initial={false}>
+            {messages.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.3 }}
+                className="flex h-full flex-col items-center justify-center text-center max-w-xl mx-auto py-8"
+              >
+                <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-tr from-blue-600 to-blue-500 text-white shadow-xl shadow-blue-500/20 mb-6">
+                  <Sparkles className="h-8 w-8" />
+                </div>
+                <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Workspace Shell</h2>
+                <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">
+                  Type an organic query or pick one of the sample prompt cards below to immediately lookup projects, task status, notes, or summarize calendar intervals.
+                </p>
 
-              {/* Suggestions Cards Grid */}
-              <div className="mt-8 grid gap-3 sm:grid-cols-2 w-full">
-                {suggestions.map((s, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSubmit(null, s.prompt)}
-                    className="flex flex-col text-left p-4 rounded-2xl border border-gray-100 hover:border-blue-300 hover:bg-blue-50/20 dark:border-slate-800 dark:hover:border-blue-500/30 dark:hover:bg-blue-500/5 transition group"
-                  >
-                    <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 group-hover:underline">
-                      {s.label}
-                    </span>
-                    <span className="mt-1 text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
-                      "{s.prompt}"
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {messages.map((m) => {
-                const isUser = m.sender === 'user'
-                return (
-                  <div key={m.id} className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
-                    {!isUser && (
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300">
-                        <Sparkles className="h-4 w-4" />
-                      </div>
-                    )}
-                    <div className="max-w-[85%] space-y-4">
-                      <div
-                        className={`rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm break-words ${
-                          isUser
-                            ? 'bg-blue-600 text-white'
-                            : m.isError
-                            ? 'bg-rose-50 text-rose-800 border border-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20'
-                            : m.unrelated
-                            ? 'bg-amber-50 text-amber-800 border border-amber-100 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20'
-                            : 'bg-gray-50 text-slate-800 dark:bg-slate-800 dark:text-slate-100'
-                        }`}
-                      >
-                        {m.text}
-                      </div>
-
-                      {/* Visual Results Cards Render Block */}
-                      {!isUser && m.results && m.results.length > 0 && (
-                        <div className="grid gap-4 mt-4 w-full">
-                          {m.results.map((result, rIdx) => {
-                            if (result.type === 'calendar_date') {
-                              // Find matching entries
-                              const matchedEntries = calendarEntries.filter(entry => 
-                                result.matchedIds?.includes(entry.id) || entry.dateKey === result.date
-                              )
-                              return (
-                                <div key={rIdx} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-3">
-                                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400">
-                                    <Calendar className="h-4 w-4" />
-                                    <span>Schedule: {result.date}</span>
-                                  </div>
-                                  {matchedEntries.length === 0 ? (
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">No scheduled tasks saved on this date.</p>
-                                  ) : (
-                                    <div className="space-y-2">
-                                      {matchedEntries.map(entry => (
-                                        <div key={entry.id} className="flex items-center justify-between rounded-xl bg-slate-50 p-3 text-xs dark:bg-slate-800">
-                                          <div className="flex flex-col gap-1">
-                                            <span className="font-semibold text-slate-900 dark:text-white">{entry.title}</span>
-                                            {entry.notes && <span className="text-[11px] text-slate-500 dark:text-slate-400">{entry.notes}</span>}
-                                          </div>
-                                          <span className="shrink-0 rounded-md bg-blue-100 px-2 py-1 text-[10px] font-medium text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
-                                            {entry.startTime || 'All day'}
-                                          </span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            }
-
-                            if (result.type === 'project') {
-                              const proj = projects.find(p => p.id === result.id)
-                              if (!proj) return null
-                              return (
-                                <div key={rIdx} className="w-full max-w-md">
-                                  <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400">
-                                    <Folder className="h-3.5 w-3.5" />
-                                    <span>Matched Project</span>
-                                  </div>
-                                  <ProjectCard
-                                    project={proj}
-                                    onDelete={onDeleteProject}
-                                    onEdit={onEditProject}
-                                  />
-                                </div>
-                              )
-                            }
-
-                            if (result.type === 'note') {
-                              const nt = notes.find(n => n.id === result.id)
-                              if (!nt) return null
-                              return (
-                                <div key={rIdx} className="w-full max-w-md">
-                                  <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">
-                                    <StickyNote className="h-3.5 w-3.5" />
-                                    <span>Matched Note / Code Snippet</span>
-                                  </div>
-                                  <NoteCard
-                                    note={nt}
-                                    onDelete={onDeleteNote}
-                                    onEdit={onEditNote}
-                                    onTogglePin={onToggleNotePin}
-                                    addToast={addToast}
-                                  />
-                                </div>
-                              )
-                            }
-
-                            if (result.type === 'task_group') {
-                              const tg = taskGroups.find(t => t.id === result.id)
-                              if (!tg) return null
-                              return (
-                                <div key={rIdx} className="w-full max-w-md">
-                                  <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
-                                    <ListTodo className="h-3.5 w-3.5" />
-                                    <span>Matched Tasks</span>
-                                  </div>
-                                  <TaskGroupCard
-                                    taskGroup={tg}
-                                    onEdit={onEditTaskGroup}
-                                    onDelete={onDeleteTaskGroup}
-                                    onUpdateTasks={onUpdateTaskGroupTasks}
-                                  />
-                                </div>
-                              )
-                            }
-
-                            if (result.type === 'launchpad') {
-                              const lp = launchpadItems.find(l => l.id === result.id)
-                              if (!lp) return null
-                              return (
-                                <div key={rIdx} className="w-full max-w-md">
-                                  <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-purple-600 dark:text-purple-400">
-                                    <ExternalLink className="h-3.5 w-3.5" />
-                                    <span>Matched Launchpad Link</span>
-                                  </div>
-                                  <LaunchpadCard
-                                    item={lp}
-                                    onDelete={onDeleteLaunchpadItem}
-                                    onUpdate={onUpdateLaunchpadItem}
-                                    onTogglePin={onToggleLaunchpadPin}
-                                    addToast={addToast}
-                                  />
-                                </div>
-                              )
-                            }
-
-                            return null
-                          })}
+                {/* Suggestions Cards Grid */}
+                <div className="mt-8 grid gap-4 sm:grid-cols-2 w-full">
+                  {suggestions.map((s, idx) => (
+                    <motion.button
+                      key={idx}
+                      type="button"
+                      whileHover={{ scale: 1.025, y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => handleSubmit(null, s.prompt)}
+                      className="flex flex-col text-left p-5 rounded-2xl border border-slate-200/50 dark:border-white/5 bg-white/50 dark:bg-slate-950/20 hover:border-blue-500/30 dark:hover:border-blue-400/30 hover:bg-blue-50/10 dark:hover:bg-blue-500/5 transition duration-300 shadow-sm cursor-pointer group"
+                    >
+                      <span className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 group-hover:text-blue-500">
+                        {s.label}
+                      </span>
+                      <span className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400 line-clamp-2 italic font-medium">
+                        "{s.prompt}"
+                      </span>
+                    </motion.button>
+                  ))}
+                </div>
+              </motion.div>
+            ) : (
+              <div className="space-y-8">
+                {messages.map((m) => {
+                  const isUser = m.sender === 'user'
+                  return (
+                    <motion.div
+                      key={m.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className={`flex gap-4 ${isUser ? 'justify-end' : 'justify-start'}`}
+                    >
+                      {!isUser && (
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-500 text-white shadow-md shadow-blue-500/20">
+                          <Sparkles className="h-4.5 w-4.5" />
                         </div>
                       )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+                      <div className="max-w-[85%] space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-bold uppercase tracking-widest ${isUser ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'}`}>
+                            {isUser ? 'You' : 'ProMana Assistant'}
+                          </span>
+                        </div>
+                        <div
+                          className={`text-sm leading-7 break-words ${
+                            isUser
+                              ? 'text-slate-800 dark:text-slate-100 font-medium bg-blue-500/5 dark:bg-blue-500/10 px-5 py-3.5 rounded-3xl rounded-tr-sm border border-blue-500/10'
+                              : m.isError
+                              ? 'bg-rose-500/5 text-rose-800 dark:bg-rose-500/10 dark:text-rose-300 px-5 py-3.5 rounded-3xl rounded-tl-sm border border-rose-500/15'
+                              : m.unrelated
+                              ? 'bg-amber-500/5 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300 px-5 py-3.5 rounded-3xl rounded-tl-sm border border-amber-500/15'
+                              : 'text-slate-800 dark:text-slate-100'
+                          }`}
+                        >
+                          {isUser ? m.text : renderMessageText(m.text)}
+                        </div>
+
+                        {/* Visual Results Cards Render Block */}
+                        {!isUser && m.results && m.results.length > 0 && (
+                          <div className="grid gap-5 mt-4 w-full">
+                            {m.results.map((result, rIdx) => {
+                              if (result.type === 'calendar_date') {
+                                // Find matching entries
+                                const matchedEntries = calendarEntries.filter(entry => 
+                                  result.matchedIds?.includes(entry.id) || entry.dateKey === result.date
+                                )
+                                return (
+                                  <div key={rIdx} className="rounded-3xl border border-slate-200/50 dark:border-white/5 bg-white/40 dark:bg-slate-950/20 p-6 shadow-md space-y-4">
+                                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400">
+                                      <Calendar className="h-4 w-4" />
+                                      <span>Schedule: {result.date}</span>
+                                    </div>
+                                    {matchedEntries.length === 0 ? (
+                                      <p className="text-xs text-slate-400 dark:text-slate-500">No scheduled tasks saved on this date.</p>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        {matchedEntries.map(entry => (
+                                          <div key={entry.id} className="flex items-center justify-between rounded-2xl bg-slate-100/50 p-4 text-xs dark:bg-slate-800/40 border border-slate-200/30 dark:border-white/5">
+                                            <div className="flex flex-col gap-1">
+                                              <span className="font-bold text-slate-900 dark:text-white">{entry.title}</span>
+                                              {entry.notes && <span className="text-[11px] text-slate-400 dark:text-slate-500">{entry.notes}</span>}
+                                            </div>
+                                            <span className="shrink-0 rounded-lg bg-blue-100/60 px-2.5 py-1 text-[10px] font-bold text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
+                                              {entry.startTime || 'All day'}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              }
+
+                              if (result.type === 'project') {
+                                const proj = projects.find(p => p.id === result.id)
+                                if (!proj) return null
+                                return (
+                                  <div key={rIdx} className="w-full max-w-md">
+                                    <div className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400">
+                                      <Folder className="h-4 w-4" />
+                                      <span>Matched Project</span>
+                                    </div>
+                                    <ProjectCard
+                                      project={proj}
+                                      onDelete={onDeleteProject}
+                                      onEdit={onEditProject}
+                                    />
+                                  </div>
+                                )
+                              }
+
+                              if (result.type === 'note') {
+                                const nt = notes.find(n => n.id === result.id)
+                                if (!nt) return null
+                                return (
+                                  <div key={rIdx} className="w-full max-w-md">
+                                    <div className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">
+                                      <StickyNote className="h-4 w-4" />
+                                      <span>Matched Note / Code Snippet</span>
+                                    </div>
+                                    <NoteCard
+                                      note={nt}
+                                      onDelete={onDeleteNote}
+                                      onEdit={onEditNote}
+                                      onTogglePin={onToggleNotePin}
+                                      addToast={addToast}
+                                    />
+                                  </div>
+                                )
+                              }
+
+                              if (result.type === 'task_group') {
+                                const tg = taskGroups.find(t => t.id === result.id)
+                                if (!tg) return null
+                                return (
+                                  <div key={rIdx} className="w-full max-w-md">
+                                    <div className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
+                                      <ListTodo className="h-4 w-4" />
+                                      <span>Matched Tasks</span>
+                                    </div>
+                                    <TaskGroupCard
+                                      taskGroup={tg}
+                                      onEdit={onEditTaskGroup}
+                                      onDelete={onDeleteTaskGroup}
+                                      onUpdateTasks={onUpdateTaskGroupTasks}
+                                    />
+                                  </div>
+                                )
+                              }
+
+                              if (result.type === 'launchpad') {
+                                const lp = launchpadItems.find(l => l.id === result.id)
+                                if (!lp) return null
+                                return (
+                                  <div key={rIdx} className="w-full max-w-md">
+                                    <div className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.2em] text-purple-600 dark:text-purple-400">
+                                      <ExternalLink className="h-4 w-4" />
+                                      <span>Matched Launchpad Link</span>
+                                    </div>
+                                    <LaunchpadCard
+                                      item={lp}
+                                      onDelete={onDeleteLaunchpadItem}
+                                      onUpdate={onUpdateLaunchpadItem}
+                                      onTogglePin={onToggleLaunchpadPin}
+                                      addToast={addToast}
+                                    />
+                                  </div>
+                                )
+                              }
+
+                              return null
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      {isUser && (
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-white/5 font-bold text-xs uppercase">
+                          ME
+                        </div>
+                      )}
+                    </motion.div>
+                  )
+                })}
+              </div>
+            )}
+          </AnimatePresence>
 
           {loading && (
-            <div className="flex gap-3 justify-start">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300">
-                <Sparkles className="h-4 w-4" />
+            <div className="flex gap-4 justify-start">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-500 text-white shadow-md">
+                <Sparkles className="h-4.5 w-4.5" />
               </div>
-              <div className="flex items-center gap-2 rounded-2xl bg-gray-50 px-4 py-3 text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                <LoaderCircle className="h-4 w-4 animate-spin text-blue-600" />
-                <span>Thinking... reading your ProMana database...</span>
+              <div className="flex items-center gap-2.5 rounded-3xl bg-slate-100/50 dark:bg-slate-800/40 border border-slate-200/30 dark:border-white/5 px-5 py-3.5 text-sm text-slate-500 dark:text-slate-400">
+                <LoaderCircle className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
+                <span className="shimmer-text">Shell query active... inspecting local workspaces...</span>
               </div>
             </div>
           )}
@@ -448,8 +586,8 @@ export default function AiWorkspace({
         </div>
 
         {/* Input Bar */}
-        <form onSubmit={handleSubmit} className="border-t border-gray-100 p-4 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-900/50">
-          <div className="relative flex items-center">
+        <form onSubmit={handleSubmit} className="border-t border-slate-100 dark:border-white/5 p-5 bg-white/40 dark:bg-slate-950/20">
+          <div className="relative flex items-center max-w-4xl mx-auto">
             <input
               type="text"
               value={prompt}
@@ -457,17 +595,17 @@ export default function AiWorkspace({
               disabled={loading || isRestoring}
               placeholder={
                 isRestoring
-                  ? "AI limits reached... wait for restoration"
-                  : "Ask about your projects, notes, task timeline or links..."
+                  ? "AI limits reached... wait for credit reset"
+                  : "Type standard query or search workspace components..."
               }
-              className="w-full rounded-2xl border border-gray-200 bg-white pl-5 pr-14 py-3.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:bg-gray-100 disabled:text-gray-400 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+              className="w-full rounded-2xl border border-slate-200 bg-white/80 dark:bg-slate-950 dark:border-white/10 pl-6 pr-16 py-4 text-sm text-slate-900 placeholder:text-slate-400 focus:placeholder:text-slate-300 dark:text-white outline-none transition duration-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:bg-slate-50 dark:disabled:bg-slate-900 disabled:text-slate-400 shadow-md"
             />
             <button
               type="submit"
               disabled={loading || isRestoring || !prompt.trim()}
-              className="absolute right-2 top-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white transition hover:bg-blue-700 disabled:bg-gray-100 disabled:text-gray-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
+              className="absolute right-2 top-2 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white transition duration-200 hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 cursor-pointer shadow-md shadow-blue-500/10 hover:scale-[1.03]"
             >
-              <Send className="h-4 w-4" />
+              <Send className="h-5 w-5" />
             </button>
           </div>
         </form>

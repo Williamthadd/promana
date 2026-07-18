@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react'
 import AddLaunchpadModal from '../components/AddLaunchpadModal'
+import AddProjectModal from '../components/AddProjectModal'
 import AiWorkspace from '../components/AiWorkspace'
 import CalendarEntryModal from '../components/CalendarEntryModal'
 import CalendarWorkspace from '../components/CalendarWorkspace'
@@ -62,8 +63,6 @@ import useToast from '../hooks/useToast'
 import useUserLimits from '../hooks/useUserLimits'
 import {
   getTimeValue,
-  normalizeProjectPath,
-  normalizeRepositoryUrl,
 } from '../utils/formatters'
 import {
   formatCalendarTime,
@@ -76,7 +75,6 @@ import {
   getProjectLanguages,
 } from '../utils/projectLanguages'
 import {
-  buildProjectEnvironments,
   getProjectPathValues,
 } from '../utils/projectEnvironments'
 
@@ -112,31 +110,9 @@ function compareProjects(left, right, sort) {
   return getTimeValue(right.lastUpdatedAt) - getTimeValue(left.lastUpdatedAt)
 }
 
-function getImportErrorMessage(error) {
-  if (error?.code === 'permission-denied') {
-    return 'Adding the project failed because Firestore denied the write. Check your Firestore rules and make sure you are signed in.'
-  }
-
-  if (error?.code === 'unavailable') {
-    return 'Adding the project failed because Firestore is unavailable right now. Please try again in a moment.'
-  }
-
-  return 'Unable to add that project right now.'
-}
-
 const MANUAL_LANGUAGE_OPTIONS = Object.keys(LANGUAGE_COLORS).filter(
   (language) => language !== 'Other',
 )
-
-function toUniqueLanguages(languages = []) {
-  return Array.from(
-    new Set(
-      languages
-        .map((language) => String(language ?? '').trim())
-        .filter(Boolean),
-    ),
-  )
-}
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth()
@@ -193,10 +169,7 @@ export default function DashboardPage() {
     () => window.localStorage.getItem('proman-theme') === 'dark',
   )
   const [isManualImportOpen, setIsManualImportOpen] = useState(false)
-  const [manualImportState, setManualImportState] = useState({
-    active: false,
-    message: '',
-  })
+
   const [isAddLaunchpadOpen, setIsAddLaunchpadOpen] = useState(false)
   const [isEditorManagerOpen, setIsEditorManagerOpen] = useState(false)
   const [isSavingCustomEditors, setIsSavingCustomEditors] = useState(false)
@@ -215,13 +188,7 @@ export default function DashboardPage() {
   const [isSavingCalendarEntry, setIsSavingCalendarEntry] = useState(false)
   const [calendarEntryToDelete, setCalendarEntryToDelete] = useState(null)
   const [workspaceFocusTarget, setWorkspaceFocusTarget] = useState(null)
-  const [projectDraft, setProjectDraft] = useState({
-    displayName: '',
-    absolutePath: '',
-    repositoryUrl: '',
-    languagesList: [],
-    customLanguage: '',
-  })
+
   const searchInputRef = useRef(null)
   const launchpadSearchInputRef = useRef(null)
   const notesSearchInputRef = useRef(null)
@@ -409,7 +376,6 @@ export default function DashboardPage() {
   useEffect(() => {
     if (hasReachedProjectLimit && isManualImportOpen) {
       setIsManualImportOpen(false)
-      resetProjectDraft()
     }
   }, [hasReachedProjectLimit, isManualImportOpen])
 
@@ -583,48 +549,7 @@ export default function DashboardPage() {
   const pinnedProjects = visibleProjects.filter((project) => project.isPinned)
   const regularProjects = visibleProjects.filter((project) => !project.isPinned)
 
-  function resetProjectDraft() {
-    setProjectDraft({
-      displayName: '',
-      absolutePath: '',
-      repositoryUrl: '',
-      languagesList: [],
-      customLanguage: '',
-    })
-  }
 
-  function handleLanguageToggle(language) {
-    setProjectDraft((currentDraft) => {
-      const hasLanguage = currentDraft.languagesList.includes(language)
-
-      return {
-        ...currentDraft,
-        languagesList: hasLanguage
-          ? currentDraft.languagesList.filter(
-              (currentLanguage) => currentLanguage !== language,
-            )
-          : [...currentDraft.languagesList, language],
-      }
-    })
-  }
-
-  function handleCustomLanguageAdd() {
-    const nextLanguage = projectDraft.customLanguage.trim()
-
-    if (!nextLanguage) {
-      addToast('Type a programming language name before adding it.', 'info')
-      return
-    }
-
-    setProjectDraft((currentDraft) => ({
-      ...currentDraft,
-      languagesList: toUniqueLanguages([
-        ...currentDraft.languagesList,
-        nextLanguage,
-      ]),
-      customLanguage: '',
-    }))
-  }
 
   function openManualImport() {
     if (hasReachedProjectLimit) {
@@ -663,85 +588,7 @@ export default function DashboardPage() {
     setIsNoteModalOpen(true)
   }
 
-  async function handleManualImportSubmit(event) {
-    event.preventDefault()
 
-    if (!user) {
-      addToast('You need to be signed in to add projects.', 'error')
-      return
-    }
-
-    if (hasReachedProjectLimit) {
-      addToast(
-        `You can only import ${maxProjects} projects here. Remove one before adding another.`,
-        'error',
-      )
-      return
-    }
-
-    const absolutePath = normalizeProjectPath(projectDraft.absolutePath)
-    const repositoryUrl = projectDraft.repositoryUrl.trim()
-      ? normalizeRepositoryUrl(projectDraft.repositoryUrl)
-      : ''
-
-    if (!absolutePath) {
-      addToast('Add the local project path before saving.', 'error')
-      return
-    }
-
-    if (projectDraft.repositoryUrl.trim() && !repositoryUrl) {
-      addToast(
-        'Add a valid repository URL like https://github.com/owner/repository.',
-        'error',
-      )
-      return
-    }
-
-    const normalizedLanguagesList = toUniqueLanguages(projectDraft.languagesList)
-    const languagesList = normalizedLanguagesList.length
-      ? normalizedLanguagesList
-      : ['Other']
-    const displayName =
-      projectDraft.displayName.trim()
-    const timestamp = Timestamp.now()
-    const environments = buildProjectEnvironments({
-      absolutePath,
-      notes: '',
-      isBroken: false,
-      lastOpenedAt: null,
-    })
-
-    setManualImportState({
-      active: true,
-      message: `Adding ${displayName} to your dashboard...`,
-    })
-
-    try {
-      await addDoc(collection(db, 'users', user.uid, 'projects'), {
-        displayName,
-        absolutePath,
-        repositoryUrl,
-        environments,
-        primaryLanguage: languagesList[0] ?? 'Other',
-        languagesList,
-        tags: [],
-        notes: '',
-        isPinned: false,
-        isBroken: false,
-        createdAt: timestamp,
-        lastUpdatedAt: timestamp,
-        lastOpenedAt: null,
-      })
-
-      resetProjectDraft()
-      setIsManualImportOpen(false)
-      addToast(`Added ${displayName}.`, 'success')
-    } catch (error) {
-      addToast(getImportErrorMessage(error), 'error')
-    } finally {
-      setManualImportState({ active: false, message: '' })
-    }
-  }
 
   async function handleDeleteProject(project) {
     if (!user) {
@@ -1123,7 +970,7 @@ export default function DashboardPage() {
   if (authLoading || limitsLoading) {
     return (
       <div
-        className="flex min-h-screen items-center justify-center dark:bg-slate-950"
+        className={`flex min-h-screen items-center justify-center transition-all duration-300 ${darkMode ? 'bg-mesh-dark' : 'bg-mesh-light'}`}
         style={
           darkMode ? undefined : { backgroundColor: getStoredLightBackgroundColor() }
         }
@@ -1135,11 +982,11 @@ export default function DashboardPage() {
 
   return (
     <div
-      className="min-h-screen pb-10 dark:bg-slate-950"
+      className={`min-h-screen pb-10 transition-all duration-300 ${darkMode ? 'bg-mesh-dark' : 'bg-mesh-light'}`}
       style={darkMode ? undefined : { backgroundColor: lightBackgroundColor }}
     >
-      <div className="pointer-events-none absolute left-0 top-0 h-72 w-72 rounded-full bg-white/40 blur-3xl dark:bg-blue-500/10" />
-      <div className="pointer-events-none absolute right-0 top-32 h-80 w-80 rounded-full bg-cyan-200/50 blur-3xl dark:bg-cyan-500/10" />
+      <div className="pointer-events-none absolute left-0 top-0 h-96 w-96 rounded-full bg-blue-500/10 blur-3xl" />
+      <div className="pointer-events-none absolute right-0 top-32 h-96 w-96 rounded-full bg-cyan-500/10 blur-3xl" />
 
       <Header
         user={user}
@@ -1151,19 +998,19 @@ export default function DashboardPage() {
         onResetLightBackgroundColor={resetLightBackgroundColor}
       />
 
-      <main className="relative mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <main className="relative mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
+        <section className="rounded-3xl border border-white/40 dark:border-white/10 glass-panel-light dark:glass-panel-dark p-8 shadow-xl">
           {dashboardMode === 'projects' ? (
             <>
               <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-2xl">
-                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
                     Projects workspace
                   </p>
-                  <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                  <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
                     Open local coding projects faster than your dock can keep up.
                   </h1>
-                  <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300 font-medium">
                     Add your local projects manually, keep paths editable, and save
                     a clean list of programming languages for each workspace.
                     {!isProPlan ? (
@@ -1176,46 +1023,38 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[26rem]">
-                  <div className="rounded-2xl bg-blue-50 px-4 py-3 dark:bg-blue-500/10">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700 dark:text-blue-200">
+                  <div className="rounded-2xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20 dark:from-blue-500/20 dark:to-cyan-500/5 px-4 py-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-700 dark:text-blue-200">
                       Projects
                     </p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                    <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
                       {usedProjectCount}
                     </p>
                   </div>
-                  <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-inset ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                  <div className="rounded-2xl border border-white/50 dark:border-white/5 glass-panel-light dark:glass-panel-dark px-4 py-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
                       Pinned
                     </p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                    <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
                       {projects.filter((project) => project.isPinned).length}
                     </p>
                   </div>
-                  <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-inset ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                  <div className="rounded-2xl border border-white/50 dark:border-white/5 glass-panel-light dark:glass-panel-dark px-4 py-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
                       Lang
                     </p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                    <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
                       {availableLangs.length}
                     </p>
                   </div>
                   <button
                     type="button"
-                    disabled={manualImportState.active || hasReachedProjectLimit}
+                    disabled={hasReachedProjectLimit}
                     onClick={openManualImport}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-80"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 text-sm font-bold text-white transition-all hover:brightness-110 shadow-md shadow-blue-500/15 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-85"
                   >
-                    {manualImportState.active ? (
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <FolderPlus className="h-4 w-4" />
-                    )}
-                    {manualImportState.active
-                      ? 'Adding project...'
-                      : hasReachedProjectLimit
-                        ? 'Project limit reached'
-                        : 'Add project'}
+                    <FolderPlus className="h-4 w-4" />
+                    {hasReachedProjectLimit ? 'Limit reached' : 'Add project'}
                   </button>
                 </div>
               </div>
@@ -1231,24 +1070,24 @@ export default function DashboardPage() {
             <>
               <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-2xl">
-                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
                     Launchpad workspace
                   </p>
-                  <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                  <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
                     Open your go-to web platforms without digging through bookmarks.
                   </h1>
-                  <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300 font-medium">
                     Save the tools you use every day, organize them with categories,
                     and jump into the right website from one Launchpad.
                   </p>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[18rem]">
-                  <div className="rounded-2xl bg-blue-50 px-4 py-3 dark:bg-blue-500/10">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700 dark:text-blue-200">
+                  <div className="rounded-2xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20 dark:from-blue-500/20 dark:to-cyan-500/5 px-4 py-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-700 dark:text-blue-200">
                       Websites
                     </p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                    <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
                       {usedWebsiteCount}
                     </p>
                   </div>
@@ -1256,15 +1095,15 @@ export default function DashboardPage() {
                     type="button"
                     disabled={hasReachedWebsiteLimit}
                     onClick={openLaunchpadImport}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-80"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 text-sm font-bold text-white transition-all hover:brightness-110 shadow-md shadow-blue-500/15 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-85"
                   >
                     <FolderPlus className="h-4 w-4" />
-                    {hasReachedWebsiteLimit ? 'Website limit reached' : 'Add shortcut'}
+                    {hasReachedWebsiteLimit ? 'Limit reached' : 'Add shortcut'}
                   </button>
                 </div>
               </div>
               {!isProPlan ? (
-                <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                <p className="mt-4 text-sm text-slate-500 dark:text-slate-400 font-medium">
                   {hasReachedWebsiteLimit
                     ? `${planLabel}: Website limit reached. Each account can only save ${maxWebsites} shortcuts here.`
                     : `Free plan: ${usedWebsiteCount}/${maxWebsites} websites used. ${remainingWebsiteSlots} slot${remainingWebsiteSlots === 1 ? '' : 's'} left.`}
@@ -1275,40 +1114,40 @@ export default function DashboardPage() {
             <>
               <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-2xl">
-                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
                     Notes workspace
                   </p>
-                  <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                  <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
                     Keep snippets, SQL, config blocks, and text notes one click away.
                   </h1>
-                  <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300 font-medium">
                     Save reusable code, important queries, deployment config, and quick
                     reference notes with a language label so every box stays readable.
                   </p>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[26rem]">
-                  <div className="rounded-2xl bg-blue-50 px-4 py-3 dark:bg-blue-500/10">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700 dark:text-blue-200">
+                  <div className="rounded-2xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20 dark:from-blue-500/20 dark:to-cyan-500/5 px-4 py-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-700 dark:text-blue-200">
                       Notes
                     </p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                    <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
                       {usedNoteCount}
                     </p>
                   </div>
-                  <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-inset ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                  <div className="rounded-2xl border border-white/50 dark:border-white/5 glass-panel-light dark:glass-panel-dark px-4 py-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
                       Pinned
                     </p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                    <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
                       {notes.filter((note) => note.isPinned).length}
                     </p>
                   </div>
-                  <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-inset ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                  <div className="rounded-2xl border border-white/50 dark:border-white/5 glass-panel-light dark:glass-panel-dark px-4 py-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
                       Formats
                     </p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                    <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
                       {availableNoteLanguages.length}
                     </p>
                   </div>
@@ -1316,15 +1155,15 @@ export default function DashboardPage() {
                     type="button"
                     disabled={hasReachedNoteLimit}
                     onClick={() => openNoteComposer()}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-80"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 text-sm font-bold text-white transition-all hover:brightness-110 shadow-md shadow-blue-500/15 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-85"
                   >
                     <StickyNote className="h-4 w-4" />
-                    {hasReachedNoteLimit ? 'Note limit reached' : 'Add note'}
+                    {hasReachedNoteLimit ? 'Limit reached' : 'Add note'}
                   </button>
                 </div>
               </div>
               {!isProPlan ? (
-                <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                <p className="mt-4 text-sm text-slate-500 dark:text-slate-400 font-medium">
                   {hasReachedNoteLimit
                     ? `${planLabel}: Note limit reached. Each account can only save ${maxNotes} notes here.`
                     : `${planLabel}: ${usedNoteCount}/${maxNotes} notes used. ${remainingNoteSlots} slot${remainingNoteSlots === 1 ? '' : 's'} left.`}
@@ -1335,40 +1174,40 @@ export default function DashboardPage() {
             <>
               <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-2xl">
-                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
                     Tasks workspace
                   </p>
-                  <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                  <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
                     Turn bigger goals into focused, trackable to-do groups.
                   </h1>
-                  <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300 font-medium">
                     Group related work, keep the context beside it, and move each
                     point from not started to done without losing the bigger picture.
                   </p>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[26rem]">
-                  <div className="rounded-2xl bg-blue-50 px-4 py-3 dark:bg-blue-500/10">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700 dark:text-blue-200">
+                  <div className="rounded-2xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20 dark:from-blue-500/20 dark:to-cyan-500/5 px-4 py-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-700 dark:text-blue-200">
                       Groups
                     </p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                    <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
                       {usedTaskGroupCount}
                     </p>
                   </div>
-                  <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-inset ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                  <div className="rounded-2xl border border-white/50 dark:border-white/5 glass-panel-light dark:glass-panel-dark px-4 py-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
                       Points
                     </p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                    <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
                       {totalTaskPointCount}
                     </p>
                   </div>
-                  <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-inset ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                  <div className="rounded-2xl border border-white/50 dark:border-white/5 glass-panel-light dark:glass-panel-dark px-4 py-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
                       Done
                     </p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                    <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
                       {completedTaskPointCount}
                     </p>
                   </div>
@@ -1376,15 +1215,15 @@ export default function DashboardPage() {
                     type="button"
                     disabled={hasReachedTaskLimit}
                     onClick={() => openTaskGroupComposer()}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-80"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 text-sm font-bold text-white transition-all hover:brightness-110 shadow-md shadow-blue-500/15 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-85"
                   >
                     <ListTodo className="h-4 w-4" />
-                    {hasReachedTaskLimit ? 'Task limit reached' : 'Add group'}
+                    {hasReachedTaskLimit ? 'Limit reached' : 'Add group'}
                   </button>
                 </div>
               </div>
               {!isProPlan ? (
-                <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                <p className="mt-4 text-sm text-slate-500 dark:text-slate-400 font-medium">
                   {hasReachedTaskLimit
                     ? `${planLabel}: Task limit reached. Each account can only save ${maxTasks} task groups here.`
                     : `${planLabel}: ${usedTaskGroupCount}/${maxTasks} task groups used. ${remainingTaskSlots} slot${remainingTaskSlots === 1 ? '' : 's'} left.`}
@@ -1395,13 +1234,13 @@ export default function DashboardPage() {
             <>
               <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-2xl">
-                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
                     Calendar workspace
                   </p>
-                  <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                  <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
                     Put every target, tool, and checklist on the day it matters.
                   </h1>
-                  <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300 font-medium">
                     Plan outcomes by month, attach the Projects, Launchpad links,
                     and Task groups needed to deliver them, and receive reminders
                     while ProMana is open.
@@ -1409,27 +1248,27 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[26rem]">
-                  <div className="rounded-2xl bg-blue-50 px-4 py-3 dark:bg-blue-500/10">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-700 dark:text-blue-200">
+                  <div className="rounded-2xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20 dark:from-blue-500/20 dark:to-cyan-500/5 px-4 py-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-700 dark:text-blue-200">
                       Targets
                     </p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                    <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
                       {calendarEntries.length}
                     </p>
                   </div>
-                  <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-inset ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                  <div className="rounded-2xl border border-white/50 dark:border-white/5 glass-panel-light dark:glass-panel-dark px-4 py-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
                       Today
                     </p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                    <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
                       {todayCalendarEntryCount}
                     </p>
                   </div>
-                  <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-inset ring-slate-200 dark:bg-slate-950 dark:ring-slate-800">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                  <div className="rounded-2xl border border-white/50 dark:border-white/5 glass-panel-light dark:glass-panel-dark px-4 py-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
                       Reminders
                     </p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                    <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
                       {calendarReminderCount}
                     </p>
                   </div>
@@ -1437,17 +1276,17 @@ export default function DashboardPage() {
                     type="button"
                     disabled={hasReachedScheduleLimit}
                     onClick={() => openCalendarEntryComposer()}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-80"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 text-sm font-bold text-white transition-all hover:brightness-110 shadow-md shadow-blue-500/15 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-85"
                   >
                     <CalendarDays className="h-4 w-4" />
                     {hasReachedScheduleLimit
-                      ? 'Schedule limit reached'
+                      ? 'Limit reached'
                       : 'Add target'}
                   </button>
                 </div>
               </div>
               {!isProPlan ? (
-                <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                <p className="mt-4 text-sm text-slate-500 dark:text-slate-400 font-medium">
                   {hasReachedScheduleLimit
                     ? `${planLabel}: Schedule limit reached. Each account can only save ${maxSchedules} schedules here.`
                     : `${planLabel}: ${calendarEntries.length}/${maxSchedules} schedules used. ${remainingScheduleSlots} slot${remainingScheduleSlots === 1 ? '' : 's'} left.`}
@@ -1458,13 +1297,13 @@ export default function DashboardPage() {
             <>
               <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-2xl">
-                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
                     Ask AI workspace
                   </p>
-                  <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                  <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
                     Supercharge your productivity with ProMana AI.
                   </h1>
-                  <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300 font-medium">
                     Ask questions about your projects, notes, task timeline, or calendar schedules,
                     and get instant structured insights.
                   </p>
@@ -1474,14 +1313,14 @@ export default function DashboardPage() {
           )}
         </section>
 
-        <div className="flex w-fit max-w-full gap-1 overflow-x-auto rounded-2xl border border-gray-100 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex w-fit max-w-full gap-1 overflow-x-auto rounded-2xl border border-white/40 dark:border-white/10 glass-panel-light dark:glass-panel-dark p-1.5 shadow-md">
           <button
             type="button"
             onClick={() => setDashboardMode('projects')}
             className={
               dashboardMode === 'projects'
-                ? 'shrink-0 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition'
-                : 'shrink-0 rounded-xl px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'
+                ? 'shrink-0 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition-all shadow-md shadow-blue-500/15 cursor-pointer'
+                : 'shrink-0 rounded-xl px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-white/40 dark:text-slate-300 dark:hover:bg-white/5 cursor-pointer'
             }
           >
             Projects
@@ -1491,8 +1330,8 @@ export default function DashboardPage() {
             onClick={() => setDashboardMode('launchpad')}
             className={
               dashboardMode === 'launchpad'
-                ? 'shrink-0 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition'
-                : 'shrink-0 rounded-xl px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'
+                ? 'shrink-0 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition-all shadow-md shadow-blue-500/15 cursor-pointer'
+                : 'shrink-0 rounded-xl px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-white/40 dark:text-slate-300 dark:hover:bg-white/5 cursor-pointer'
             }
           >
             Launchpad
@@ -1502,8 +1341,8 @@ export default function DashboardPage() {
             onClick={() => setDashboardMode('notes')}
             className={
               dashboardMode === 'notes'
-                ? 'shrink-0 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition'
-                : 'shrink-0 rounded-xl px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'
+                ? 'shrink-0 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition-all shadow-md shadow-blue-500/15 cursor-pointer'
+                : 'shrink-0 rounded-xl px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-white/40 dark:text-slate-300 dark:hover:bg-white/5 cursor-pointer'
             }
           >
             Notes
@@ -1513,8 +1352,8 @@ export default function DashboardPage() {
             onClick={() => setDashboardMode('tasks')}
             className={
               dashboardMode === 'tasks'
-                ? 'shrink-0 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition'
-                : 'shrink-0 rounded-xl px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'
+                ? 'shrink-0 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition-all shadow-md shadow-blue-500/15 cursor-pointer'
+                : 'shrink-0 rounded-xl px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-white/40 dark:text-slate-300 dark:hover:bg-white/5 cursor-pointer'
             }
           >
             Tasks
@@ -1524,8 +1363,8 @@ export default function DashboardPage() {
             onClick={() => setDashboardMode('calendar')}
             className={
               dashboardMode === 'calendar'
-                ? 'shrink-0 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition'
-                : 'shrink-0 rounded-xl px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'
+                ? 'shrink-0 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition-all shadow-md shadow-blue-500/15 cursor-pointer'
+                : 'shrink-0 rounded-xl px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-white/40 dark:text-slate-300 dark:hover:bg-white/5 cursor-pointer'
             }
           >
             Calendar
@@ -1535,219 +1374,15 @@ export default function DashboardPage() {
             onClick={() => setDashboardMode('ai')}
             className={
               dashboardMode === 'ai'
-                ? 'shrink-0 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition'
-                : 'shrink-0 rounded-xl px-5 py-2 text-sm font-medium text-slate-600 transition hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800'
+                ? 'shrink-0 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition-all shadow-md shadow-blue-500/15 cursor-pointer'
+                : 'shrink-0 rounded-xl px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-white/40 dark:text-slate-300 dark:hover:bg-white/5 cursor-pointer'
             }
           >
             Ask AI
           </button>
         </div>
 
-        {dashboardMode === 'projects' && isManualImportOpen ? (
-          <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
-                  Manual Import
-                </p>
-                <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-                  Add a local project by path
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                  Enter the local project path, optionally rename the card, and
-                  choose the programming languages you want displayed.
-                  {!isProPlan ? (
-                    <>
-                      {' '}
-                      {planLabel}: You can only import {maxProjects} projects here.
-                    </>
-                  ) : null}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsManualImportOpen(false)
-                  resetProjectDraft()
-                }}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-slate-500 transition hover:bg-gray-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                aria-label="Close manual import"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <form className="mt-6 grid gap-4" onSubmit={handleManualImportSubmit}>
-              <div className="grid gap-4 md:grid-cols-3">
-                <label className="grid gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-                    Project name
-                  </span>
-                  <input
-                    type="text"
-                    value={projectDraft.displayName}
-                    onChange={(event) =>
-                      setProjectDraft((currentDraft) => ({
-                        ...currentDraft,
-                        displayName: event.target.value,
-                      }))
-                    }
-                    placeholder="Optional, ProMana will use the folder name if blank"
-                    className="rounded-2xl border border-gray-200 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
-                  />
-                </label>
-
-                <label className="grid gap-2 md:col-span-1">
-                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-                    Local project path
-                  </span>
-                  <input
-                    type="text"
-                    required
-                    value={projectDraft.absolutePath}
-                    onChange={(event) =>
-                      setProjectDraft((currentDraft) => ({
-                        ...currentDraft,
-                        absolutePath: event.target.value,
-                      }))
-                    }
-                    placeholder="/Users/..."
-                    className="rounded-2xl border border-gray-200 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
-                  />
-                </label>
-              </div>
-
-              <label className="grid gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-                  Repository link
-                </span>
-                <input
-                  type="text"
-                  value={projectDraft.repositoryUrl}
-                  onChange={(event) =>
-                    setProjectDraft((currentDraft) => ({
-                      ...currentDraft,
-                      repositoryUrl: event.target.value,
-                    }))
-                  }
-                  placeholder="Optional, for example github.com/owner/repository"
-                  className="rounded-2xl border border-gray-200 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
-                />
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Optional. Add a repository URL so the card can open the repo
-                  directly in a browser tab.
-                </p>
-              </label>
-
-              <div className="grid gap-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-                  Programming languages
-                </p>
-                <div className="flex flex-wrap gap-3">
-                  {MANUAL_LANGUAGE_OPTIONS.map((language) => {
-                    const isSelected =
-                      projectDraft.languagesList.includes(language)
-
-                    return (
-                      <button
-                        key={language}
-                        type="button"
-                        onClick={() => handleLanguageToggle(language)}
-                        className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                          isSelected
-                            ? 'bg-blue-600 text-white'
-                            : 'border border-gray-200 bg-white text-slate-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        {language}
-                      </button>
-                    )
-                  })}
-                </div>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <input
-                    type="text"
-                    value={projectDraft.customLanguage}
-                    onChange={(event) =>
-                      setProjectDraft((currentDraft) => ({
-                        ...currentDraft,
-                        customLanguage: event.target.value,
-                      }))
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault()
-                        handleCustomLanguageAdd()
-                      }
-                    }}
-                    placeholder="Add another language, for example Kotlin"
-                    className="min-w-0 flex-1 rounded-2xl border border-gray-200 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleCustomLanguageAdd}
-                    className="rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
-                    Add custom language
-                  </button>
-                </div>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  The project card will show these as a language list. No file
-                  scanning or percentage breakdown will be generated.
-                </p>
-                {!isProPlan ? (
-                  <p className="text-sm font-medium text-blue-700 dark:text-blue-200">
-                    {`${usedProjectCount}/${maxProjects} projects used. ${remainingProjectSlots} slot${remainingProjectSlots === 1 ? '' : 's'} left.`}
-                  </p>
-                ) : null}
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {`Default env on add: ${DEFAULT_PROJECT_ENVIRONMENTS[0]}`}
-                </p>
-              </div>
-
-              <div className="flex flex-wrap justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsManualImportOpen(false)
-                    resetProjectDraft()
-                  }}
-                  className="rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={manualImportState.active || hasReachedProjectLimit}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-80"
-                >
-                  {manualImportState.active ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <FolderPlus className="h-4 w-4" />
-                  )}
-                  {manualImportState.active
-                    ? 'Saving project...'
-                    : hasReachedProjectLimit
-                      ? 'Project limit reached'
-                      : 'Add project'}
-                </button>
-              </div>
-            </form>
-          </section>
-        ) : null}
-
-        {dashboardMode === 'launchpad' && isAddLaunchpadOpen ? (
-          <AddLaunchpadModal
-            onClose={() => setIsAddLaunchpadOpen(false)}
-            addToast={addToast}
-            maxWebsites={maxWebsites}
-            usedWebsites={usedWebsiteCount}
-            hasReachedLimit={hasReachedWebsiteLimit}
-            isUnlimited={isProPlan}
-          />
-        ) : null}
+        {/* We moved manual project import form and launchpad add form to popup modals */}
 
         {isNoteModalOpen ? (
           <NoteModal
@@ -1865,20 +1500,14 @@ export default function DashboardPage() {
                 </p>
                 <button
                   type="button"
-                  disabled={manualImportState.active || hasReachedProjectLimit}
+                  disabled={hasReachedProjectLimit}
                   onClick={openManualImport}
                   className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-80"
                 >
-                  {manualImportState.active ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <FolderPlus className="h-4 w-4" />
-                  )}
-                  {manualImportState.active
-                    ? 'Adding project...'
-                    : hasReachedProjectLimit
-                      ? 'Project limit reached'
-                      : 'Add your first project'}
+                  <FolderPlus className="h-4 w-4" />
+                  {hasReachedProjectLimit
+                    ? 'Project limit reached'
+                    : 'Add your first project'}
                 </button>
               </section>
             ) : null}
@@ -2180,16 +1809,8 @@ export default function DashboardPage() {
             taskGroups={taskGroups}
             calendarEntries={calendarEntries}
             onDeleteProject={handleDeleteProject}
-            onEditProject={(project) => {
-              setProjectDraft({
-                id: project.id,
-                displayName: project.displayName ?? '',
-                absolutePath: project.absolutePath ?? '',
-                repositoryUrl: project.repositoryUrl ?? '',
-                languagesList: project.languagesList ?? [],
-                customLanguage: '',
-              })
-              setIsManualImportOpen(true)
+            onEditProject={() => {
+              openManualImport()
             }}
             onDeleteNote={handleDeleteNote}
             onEditNote={openNoteComposer}
@@ -2253,31 +1874,31 @@ export default function DashboardPage() {
         )}
       </main>
 
-      {manualImportState.active ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/50 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center gap-4">
-              <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200">
-                <LoaderCircle className="h-7 w-7 animate-spin" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
-                  Adding Project
-                </p>
-                <h2 className="mt-1 text-xl font-bold text-slate-900 dark:text-white">
-                  {manualImportState.message}
-                </h2>
-              </div>
-            </div>
-            <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
-              ProMana is saving the new project card and preparing it for the
-              dashboard. Keep this tab open for a moment.
-            </p>
-          </div>
-        </div>
-      ) : null}
+
 
       <MadeByFooter className="px-4 pb-6 sm:px-6 lg:px-8" />
+
+      <AddProjectModal
+        open={isManualImportOpen}
+        onClose={() => setIsManualImportOpen(false)}
+        addToast={addToast}
+        maxProjects={maxProjects}
+        usedProjects={usedProjectCount}
+        hasReachedLimit={hasReachedProjectLimit}
+        isUnlimited={isProPlan}
+        planLabel={planLabel}
+      />
+
+      <AddLaunchpadModal
+        open={isAddLaunchpadOpen}
+        onClose={() => setIsAddLaunchpadOpen(false)}
+        addToast={addToast}
+        maxWebsites={maxWebsites}
+        usedWebsites={usedWebsiteCount}
+        hasReachedLimit={hasReachedWebsiteLimit}
+        isUnlimited={isProPlan}
+      />
+
       <ToastContainer toasts={toasts} onClose={removeToast} />
     </div>
   )

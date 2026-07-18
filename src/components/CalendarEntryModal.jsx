@@ -64,9 +64,9 @@ function LinkPicker({
   }
 
   return (
-    <section className="calendar-link-picker group min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-slate-50/70 p-4 transition-[transform,border-color,background-color,box-shadow] duration-300 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white hover:shadow-lg hover:shadow-blue-950/5 motion-reduce:transform-none dark:border-slate-700 dark:bg-slate-950/50 dark:hover:border-blue-800 dark:hover:bg-slate-950 dark:hover:shadow-black/20">
+    <section className="calendar-link-picker group min-w-0 overflow-hidden rounded-2xl border border-white/40 bg-white/30 p-4 transition-[transform,border-color,background-color,box-shadow] duration-300 hover:-translate-y-0.5 hover:border-blue-500/20 hover:bg-white/60 hover:shadow-lg hover:shadow-blue-500/10 motion-reduce:transform-none dark:border-white/5 dark:bg-slate-950/40 dark:hover:border-blue-500/20 dark:hover:bg-slate-950/60 dark:hover:shadow-black/20">
       <div className="flex items-start gap-3">
-        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-blue-600 shadow-sm transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:scale-105 motion-reduce:transform-none dark:bg-slate-900 dark:text-blue-300">
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/70 text-blue-600 shadow-sm transition-all duration-300 group-hover:-translate-y-0.5 group-hover:scale-105 motion-reduce:transform-none dark:bg-slate-900/70 dark:text-blue-300">
           {createElement(icon, { className: 'h-4 w-4' })}
         </span>
         <div className="min-w-0">
@@ -81,7 +81,7 @@ function LinkPicker({
 
       <div className="mt-4 grid gap-3">
         <div className="min-w-0">
-          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+          <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
             Selected
           </p>
           {selectedItems.length > 0 ? (
@@ -89,7 +89,7 @@ function LinkPicker({
               {selectedItems.map((item) => (
                 <span
                   key={item.id}
-                  className="calendar-selected-chip inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 py-1.5 pl-3 pr-1.5 text-xs font-semibold text-blue-800 dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-100"
+                  className="calendar-selected-chip inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/10 py-1.5 pl-3 pr-1.5 text-xs font-bold text-blue-700 dark:border-blue-400/20 dark:bg-blue-500/15 dark:text-blue-200"
                 >
                   <span className="min-w-0 truncate">{item.label}</span>
                   <button
@@ -115,7 +115,7 @@ function LinkPicker({
             type="button"
             onClick={togglePicker}
             disabled={items.length === 0}
-            className="flex w-full min-w-0 items-center justify-between gap-3 overflow-hidden rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left text-sm font-semibold text-slate-700 transition hover:border-blue-300 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-700"
+            className="flex w-full min-w-0 items-center justify-between gap-3 overflow-hidden rounded-xl border border-white/40 bg-white/80 px-3 py-2.5 text-left text-sm font-bold text-slate-700 transition hover:border-blue-500/20 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-950/80 dark:text-slate-200 dark:hover:border-blue-500/20 dark:hover:bg-slate-950 cursor-pointer"
             aria-expanded={isOpen}
             aria-controls={pickerId}
           >
@@ -136,7 +136,7 @@ function LinkPicker({
           {isOpen ? (
             <div
               id={pickerId}
-              className="calendar-picker-menu mt-2 grid w-full min-w-0 gap-2 overflow-hidden rounded-xl border border-gray-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+              className="calendar-picker-menu mt-2 grid w-full min-w-0 gap-2 overflow-hidden rounded-xl border border-white/40 bg-white p-2 shadow-lg dark:border-white/10 dark:bg-slate-950"
             >
               <label className="relative block min-w-0">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
@@ -146,7 +146,7 @@ function LinkPicker({
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder={`Search ${title.toLowerCase()}...`}
                   autoFocus
-                  className="w-full min-w-0 rounded-lg border border-gray-200 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-500/20"
+                  className="w-full min-w-0 rounded-lg border border-white/40 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-white/10 dark:bg-slate-900 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-500/20"
                   aria-label={`Search ${title.toLowerCase()}`}
                 />
               </label>
@@ -267,11 +267,11 @@ function CalendarEntryModalForm({
 
   return (
     <div
-      className="calendar-modal-backdrop fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/55 px-3 py-3 backdrop-blur-[2px] sm:items-center sm:px-4 sm:py-6"
+      className="calendar-modal-backdrop fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 px-3 py-3 backdrop-blur-md sm:items-center sm:px-4 sm:py-6"
       onClick={isSaving ? undefined : onClose}
     >
       <div
-        className="calendar-modal-panel relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-gray-100 bg-white p-5 shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:p-7 dark:border-slate-800 dark:bg-slate-900"
+        className="calendar-modal-panel relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/40 dark:border-white/10 glass-panel-light dark:glass-panel-dark p-5 shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:p-7"
         onClick={(event) => event.stopPropagation()}
       >
         <div
@@ -284,14 +284,14 @@ function CalendarEntryModalForm({
         />
         <div className="flex shrink-0 items-start justify-between gap-4">
           <div>
-            <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+            <p className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
               <CalendarDays className="h-4 w-4" />
               Calendar workspace
             </p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 dark:text-white sm:text-3xl">
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950 dark:text-white sm:text-3xl">
               {isEditing ? 'Edit scheduled target' : 'Schedule a new target'}
             </h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed font-medium text-slate-600 dark:text-slate-300">
               Add the outcome you want to reach, then connect the workspace items
               you will need when that day arrives.
             </p>
@@ -300,7 +300,7 @@ function CalendarEntryModalForm({
             type="button"
             onClick={onClose}
             disabled={isSaving}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 text-slate-500 transition hover:bg-gray-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/40 text-slate-500 transition hover:bg-white/40 disabled:opacity-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5 cursor-pointer"
             aria-label="Close calendar entry modal"
           >
             <X className="h-4 w-4" />
@@ -314,7 +314,7 @@ function CalendarEntryModalForm({
           <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pr-1">
             <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_12rem_10rem]">
               <label className="grid gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
                   Target title
                 </span>
                 <input
@@ -323,35 +323,35 @@ function CalendarEntryModalForm({
                   onChange={(event) => updateDraft('title', event.target.value)}
                   placeholder="For example, Ship onboarding flow"
                   autoFocus
-                  className="rounded-2xl border border-gray-200 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                  className="rounded-2xl border border-white/40 bg-white/80 px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-white/10 dark:bg-slate-950/80 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-400/20"
                 />
               </label>
               <label className="grid gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
                   Date
                 </span>
                 <input
                   type="date"
                   value={draft.dateKey}
                   onChange={(event) => updateDraft('dateKey', event.target.value)}
-                  className="rounded-2xl border border-gray-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                  className="rounded-2xl border border-white/40 bg-white/80 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-white/10 dark:bg-slate-950/80 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-400/20"
                 />
               </label>
               <label className="grid gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
                   Time
                 </span>
                 <input
                   type="time"
                   value={draft.time}
                   onChange={(event) => updateDraft('time', event.target.value)}
-                  className="rounded-2xl border border-gray-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                  className="rounded-2xl border border-white/40 bg-white/80 px-4 py-3 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-white/10 dark:bg-slate-950/80 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-400/20"
                 />
               </label>
             </div>
 
             <label className="grid gap-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+              <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
                 Target note
               </span>
               <textarea
@@ -359,11 +359,11 @@ function CalendarEntryModalForm({
                 onChange={(event) => updateDraft('note', event.target.value)}
                 rows={4}
                 placeholder="Describe the result, preparation, or definition of done..."
-                className="min-h-28 resize-y rounded-2xl border border-gray-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                className="min-h-28 resize-y rounded-2xl border border-white/40 bg-white/80 px-4 py-3 text-sm leading-relaxed text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-white/10 dark:bg-slate-950/80 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-400/20"
               />
             </label>
 
-            <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900 dark:bg-amber-950/30">
+            <section className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 dark:border-amber-500/10 dark:bg-amber-500/5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <label className="flex cursor-pointer items-center gap-3">
                   <input
@@ -375,7 +375,7 @@ function CalendarEntryModalForm({
                     className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
                   />
                   <span>
-                    <span className="flex items-center gap-2 text-sm font-bold text-amber-900 dark:text-amber-100">
+                    <span className="flex items-center gap-2 text-sm font-bold text-amber-950 dark:text-amber-100">
                       <Bell className="h-4 w-4" />
                       Remind me in ProMana
                     </span>
@@ -391,7 +391,7 @@ function CalendarEntryModalForm({
                     onChange={(event) =>
                       updateDraft('reminderTime', event.target.value)
                     }
-                    className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100 dark:border-amber-800 dark:bg-slate-900 dark:text-white dark:focus:ring-amber-500/20"
+                    className="rounded-xl border border-amber-500/20 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 dark:border-amber-500/10 dark:bg-slate-950 dark:text-white dark:focus:ring-amber-500/20"
                     aria-label="Reminder time"
                   />
                 ) : null}
@@ -429,25 +429,25 @@ function CalendarEntryModalForm({
             </div>
 
             {formError ? (
-              <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:bg-red-950/50 dark:text-red-200">
+              <p className="rounded-2xl bg-red-500/10 border border-red-500/10 px-4 py-3 text-sm font-bold text-red-700 dark:bg-red-500/15 dark:text-red-200">
                 {formError}
               </p>
             ) : null}
           </div>
 
-          <div className="mt-4 flex shrink-0 flex-wrap justify-end gap-3 border-t border-gray-100 pt-4 dark:border-slate-800">
+          <div className="mt-4 flex shrink-0 flex-wrap justify-end gap-3 border-t border-white/20 pt-4 dark:border-white/5">
             <button
               type="button"
               onClick={onClose}
               disabled={isSaving}
-              className="rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              className="rounded-2xl border border-white/40 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-white/40 disabled:opacity-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5 cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-80"
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 px-5 py-3 text-sm font-bold text-white shadow-md shadow-blue-500/15 transition-all hover:brightness-110 hover:scale-[1.01] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-80 cursor-pointer"
             >
               {isSaving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
               {isSaving
