@@ -143,10 +143,54 @@ export default function AiWorkspace({
     }
   }
 
+  // Client-side security pre-filter patterns
+  const blockedPatterns = [
+    /ignore\s+(all\s+)?(previous|prior|above|system)\s+(instruction|prompt|rule)/i,
+    /forget\s+(all\s+)?(previous|prior|above|your)\s+(instruction|prompt|rule)/i,
+    /disregard\s+(all\s+)?(previous|prior|above|your)\s+(instruction|prompt|rule)/i,
+    /override\s+(all\s+)?(previous|prior|your|system)\s+(instruction|prompt|rule)/i,
+    /you\s+are\s+now\s+(a|an|the)\s+/i,
+    /pretend\s+(you\s+are|to\s+be|you're)\s+/i,
+    /act\s+as\s+(a|an|the|if)\s+/i,
+    /enter\s+(developer|admin|debug|god|sudo|root)\s+mode/i,
+    /what\s+(is|are)\s+your\s+(system|initial|original)\s+(prompt|instruction)/i,
+    /show\s+(me\s+)?(your|the)\s+(system|initial|original)\s+(prompt|instruction)/i,
+    /\bdelete\b.*\b(from|in)\s+(database|db|firestore|firebase)/i,
+    /\bdrop\b.*\b(table|collection|database)/i,
+    /other\s+(user|account|people)('?s)?\s+(data|project|note|task)/i,
+    /all\s+users?\s+(data|project|note|task)/i,
+    /\bapi[_\s]?key\b/i,
+    /\bpassword\b/i,
+    /\bcredential/i,
+  ]
+
   const handleSubmit = async (e, customPrompt = '') => {
     if (e) e.preventDefault()
     const activePrompt = customPrompt || prompt
     if (!activePrompt.trim()) return
+
+    // Client-side length limit
+    if (activePrompt.length > 1000) {
+      addToast('Prompt is too long. Please keep it under 1000 characters.', 'error')
+      return
+    }
+
+    // Client-side injection pattern check
+    const normalized = activePrompt.replace(/[\s\u200B\u200C\u200D\uFEFF]+/g, ' ').trim()
+    for (const pattern of blockedPatterns) {
+      if (pattern.test(normalized)) {
+        setPrompt('')
+        const userMessage = { id: Date.now().toString(), sender: 'user', text: activePrompt }
+        const blockedMessage = {
+          id: (Date.now() + 1).toString(),
+          sender: 'ai',
+          text: '🛡️ This query was blocked by ProMana\'s security system. I can only help you search, filter, and summarize your own ProMana workspace data (projects, notes, tasks, launchpad shortcuts, and calendar entries).',
+          unrelated: true
+        }
+        setMessages(prev => [...prev, userMessage, blockedMessage])
+        return
+      }
+    }
 
     if (creditsUsed >= DAILY_LIMIT) {
       addToast('Daily free AI limits reached. Please wait for credit restoration.', 'info')
