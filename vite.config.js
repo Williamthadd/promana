@@ -47,9 +47,16 @@ function devApiPlugin() {
                   res.statusCode = code
                   return this
                 },
+                setHeader(name, value) {
+                  res.setHeader(name, value)
+                  return this
+                },
                 json(data) {
                   res.setHeader('Content-Type', 'application/json')
                   res.end(JSON.stringify(data))
+                },
+                send(data) {
+                  res.end(data)
                 },
                 end(data) {
                   res.end(data)

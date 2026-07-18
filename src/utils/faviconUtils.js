@@ -13,7 +13,7 @@ export function getFaviconUrl(url, size = 128) {
     return null
   }
 
-  return `https://www.google.com/s2/favicons?domain=${domain}&sz=${size}`
+  return `/api/favicon?domain=${domain}&size=${size}`
 }
 
 export function getFaviconFallbackUrl(url) {
@@ -23,7 +23,7 @@ export function getFaviconFallbackUrl(url) {
     return null
   }
 
-  return `https://favicon.im/${domain}`
+  return `/api/favicon?domain=${domain}&size=128`
 }
 
 export function isValidUrl(url) {
