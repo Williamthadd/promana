@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import {
+  Bookmark,
   Check,
   CheckCircle2,
   Pencil,
@@ -21,6 +22,7 @@ export default function TaskGroupCard({
   taskGroup,
   onEdit,
   onDelete,
+  onTogglePin,
   onUpdateTasks,
   onSelectTag,
 }) {
@@ -76,6 +78,22 @@ export default function TaskGroupCard({
           </div>
 
           <div className="flex shrink-0 gap-1">
+            <button
+              type="button"
+              onClick={() => void onTogglePin?.(taskGroup)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-blue-950/50 dark:hover:text-blue-200"
+              aria-label={
+                taskGroup.isPinned
+                  ? `Unpin ${taskGroup.title}`
+                  : `Pin ${taskGroup.title}`
+              }
+              title={taskGroup.isPinned ? "Unpin task group" : "Pin task group"}
+            >
+              <Bookmark
+                className="h-4 w-4"
+                fill={taskGroup.isPinned ? "currentColor" : "none"}
+              />
+            </button>
             <button
               type="button"
               onClick={() => onEdit?.(taskGroup)}

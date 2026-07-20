@@ -5,10 +5,13 @@ import { getTimeValue } from "../utils/formatters"
 import { normalizeTaskItems } from "../utils/taskUtils"
 
 function sortTaskGroups(taskGroups) {
-  return [...taskGroups].sort(
-    (left, right) =>
-      getTimeValue(right.lastUpdatedAt) - getTimeValue(left.lastUpdatedAt),
-  )
+  return [...taskGroups].sort((left, right) => {
+    if (Boolean(left.isPinned) !== Boolean(right.isPinned)) {
+      return left.isPinned ? -1 : 1
+    }
+
+    return getTimeValue(right.lastUpdatedAt) - getTimeValue(left.lastUpdatedAt)
+  })
 }
 
 export default function useTaskGroups(uid) {
@@ -33,6 +36,7 @@ export default function useTaskGroups(uid) {
           return {
             id: documentSnapshot.id,
             ...data,
+            isPinned: Boolean(data.isPinned),
             tags: Array.isArray(data.tags) ? data.tags : [],
             tasks: normalizeTaskItems(data.tasks),
           }

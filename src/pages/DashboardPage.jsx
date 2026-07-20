@@ -483,6 +483,12 @@ export default function DashboardPage() {
       return matchesSearch && matchesTag && matchesStatus
     })
   }, [taskGroups, tasksFilterStatus, tasksFilterTag, tasksSearch])
+  const pinnedTaskGroups = visibleTaskGroups.filter(
+    (taskGroup) => taskGroup.isPinned,
+  )
+  const regularTaskGroups = visibleTaskGroups.filter(
+    (taskGroup) => !taskGroup.isPinned,
+  )
 
   useEffect(() => {
     if (!workspaceFocusTarget || dashboardMode !== workspaceFocusTarget.mode) {
@@ -785,6 +791,7 @@ export default function DashboardPage() {
       note: taskGroupDraft.note,
       tags: taskGroupDraft.tags ?? [],
       tasks: taskGroupDraft.tasks,
+      isPinned: activeTaskGroup?.isPinned ?? false,
       lastUpdatedAt: timestamp,
     }
 
@@ -829,6 +836,28 @@ export default function DashboardPage() {
     } catch (error) {
       addToast('Unable to update that to-do point right now.', 'error')
       throw error
+    }
+  }
+
+  async function handleToggleTaskGroupPin(taskGroup) {
+    if (!user) {
+      addToast('You need to be signed in to update task groups.', 'error')
+      return
+    }
+
+    try {
+      await updateDoc(
+        doc(db, 'users', user.uid, 'taskGroups', taskGroup.id),
+        { isPinned: !taskGroup.isPinned },
+      )
+      addToast(
+        taskGroup.isPinned
+          ? 'Task group unpinned.'
+          : 'Task group pinned to top.',
+        'success',
+      )
+    } catch {
+      addToast('Unable to update that task group right now.', 'error')
     }
   }
 
@@ -1773,17 +1802,50 @@ export default function DashboardPage() {
                     {visibleTaskGroups.length === 1 ? '' : 's'} in view
                   </p>
                 </div>
-                <div className="grid items-start gap-6 lg:grid-cols-2">
-                  {visibleTaskGroups.map((taskGroup) => (
-                    <TaskGroupCard
-                      key={taskGroup.id}
-                      taskGroup={taskGroup}
-                      onEdit={openTaskGroupComposer}
-                      onDelete={setTaskGroupToDelete}
-                      onUpdateTasks={handleUpdateTaskGroupTasks}
-                      onSelectTag={setTasksFilterTag}
-                    />
-                  ))}
+                <div className="grid gap-6">
+                  {pinnedTaskGroups.length > 0 ? (
+                    <section className="grid gap-3">
+                      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                        📌 Pinned
+                      </p>
+                      <div className="grid items-start gap-6 lg:grid-cols-2">
+                        {pinnedTaskGroups.map((taskGroup) => (
+                          <TaskGroupCard
+                            key={taskGroup.id}
+                            taskGroup={taskGroup}
+                            onEdit={openTaskGroupComposer}
+                            onDelete={setTaskGroupToDelete}
+                            onTogglePin={handleToggleTaskGroupPin}
+                            onUpdateTasks={handleUpdateTaskGroupTasks}
+                            onSelectTag={setTasksFilterTag}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  ) : null}
+
+                  {regularTaskGroups.length > 0 ? (
+                    <section className="grid gap-3">
+                      {pinnedTaskGroups.length > 0 ? (
+                        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                          All task groups
+                        </p>
+                      ) : null}
+                      <div className="grid items-start gap-6 lg:grid-cols-2">
+                        {regularTaskGroups.map((taskGroup) => (
+                          <TaskGroupCard
+                            key={taskGroup.id}
+                            taskGroup={taskGroup}
+                            onEdit={openTaskGroupComposer}
+                            onDelete={setTaskGroupToDelete}
+                            onTogglePin={handleToggleTaskGroupPin}
+                            onUpdateTasks={handleUpdateTaskGroupTasks}
+                            onSelectTag={setTasksFilterTag}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  ) : null}
                 </div>
               </section>
             ) : null}
