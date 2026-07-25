@@ -272,6 +272,38 @@
   animation: city-beacon 1.8s ease-in-out infinite;
 }
 
+.city-venue {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: city-venue-arrive 680ms cubic-bezier(0.16, 1, 0.3, 1)
+    var(--city-venue-delay) backwards;
+}
+
+.city-food-truck {
+  filter: drop-shadow(0 7px 5px rgba(15, 23, 42, 0.18));
+}
+
+.city-cafe {
+  filter: drop-shadow(0 8px 7px rgba(15, 23, 42, 0.16));
+}
+
+.city-venue__steam {
+  stroke-dasharray: 6 5;
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: city-venue-steam 2.1s ease-in-out infinite;
+}
+
+.city-venue__steam--two {
+  animation-delay: -1.05s;
+}
+
+.city-cafe__canopy {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: city-cafe-canopy 2.8s ease-in-out infinite alternate;
+}
+
 .city-fountain {
   filter: drop-shadow(0 7px 7px rgba(8, 145, 178, 0.2));
 }
@@ -468,6 +500,46 @@
   50% {
     opacity: 1;
     transform: scale(1.35);
+  }
+}
+
+@keyframes city-venue-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.82);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes city-venue-steam {
+  0% {
+    opacity: 0;
+    stroke-dashoffset: 12;
+    transform: translateY(3px) scale(0.82);
+  }
+
+  45% {
+    opacity: 0.85;
+  }
+
+  100% {
+    opacity: 0;
+    stroke-dashoffset: -14;
+    transform: translateY(-7px) scale(1.08);
+  }
+}
+
+@keyframes city-cafe-canopy {
+  from {
+    transform: skewX(-2deg) scaleX(0.98);
+  }
+
+  to {
+    transform: skewX(2deg) scaleX(1.02);
   }
 }
 
@@ -810,6 +882,9 @@
   .city-building__windows,
   .city-building__halo,
   .city-spire__beacon,
+  .city-venue,
+  .city-venue__steam,
+  .city-cafe__canopy,
   .city-fountain__ripple,
   .city-fountain__jet,
   .city-fountain__drop,

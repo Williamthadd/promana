@@ -861,6 +861,312 @@ function RoadTraffic() {
   )
 }
 
+const CITY_VENUES = [
+  {
+    id: 'southwest-food-truck',
+    type: 'truck',
+    x: 220,
+    y: 526,
+    scale: 0.86,
+    color: '#F97316',
+    accent: '#FDE68A',
+    label: 'TACOS',
+  },
+  {
+    id: 'park-cafe',
+    type: 'cafe',
+    x: 532,
+    y: 434,
+    scale: 0.62,
+    color: '#EC4899',
+    accent: '#FCE7F3',
+    label: 'CAFE',
+  },
+  {
+    id: 'notes-cafe',
+    type: 'cafe',
+    x: 570,
+    y: 370,
+    scale: 0.66,
+    color: '#F59E0B',
+    accent: '#FEF3C7',
+    label: 'BREW',
+  },
+  {
+    id: 'east-cafe',
+    type: 'cafe',
+    x: 770,
+    y: 438,
+    scale: 0.72,
+    color: '#0D9488',
+    accent: '#CCFBF1',
+    label: 'CAFE',
+  },
+  {
+    id: 'metro-food-truck',
+    type: 'truck',
+    x: 660,
+    y: 636,
+    scale: 0.8,
+    color: PROMANA_PRIMARY,
+    accent: '#DDF7FF',
+    label: 'BITES',
+  },
+]
+
+function FoodTruck({
+  x,
+  y,
+  scale,
+  color,
+  accent,
+  label,
+  palette,
+  animationIndex,
+}) {
+  const darkerColor = mixHexColors(color, '#07111F', 0.28)
+
+  return (
+    <g transform={`translate(${x} ${y}) scale(${scale})`} aria-hidden="true">
+      <g
+        className="city-venue city-food-truck"
+        style={{ '--city-venue-delay': `${animationIndex * 110}ms` }}
+      >
+        <ellipse cx="0" cy="7" rx="39" ry="10" fill="#000000" opacity="0.16" />
+        <rect
+          x="-34"
+          y="-28"
+          width="58"
+          height="31"
+          rx="6"
+          fill={color}
+          stroke={palette.sceneBorder}
+          strokeWidth="2"
+        />
+        <path
+          d="M24 -22 H34 L43 -10 V3 H24 Z"
+          fill={darkerColor}
+          stroke={palette.sceneBorder}
+          strokeWidth="2"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M27 -19 H33 L39 -10 H27 Z"
+          fill="#DDF7FF"
+          opacity="0.9"
+        />
+        <rect
+          x="-24"
+          y="-22"
+          width="30"
+          height="14"
+          rx="2"
+          fill={palette.label}
+          stroke="#FFFFFF"
+          strokeWidth="1.5"
+        />
+        <rect
+          x="-26"
+          y="-28"
+          width="35"
+          height="6"
+          rx="2"
+          fill={accent}
+          stroke="#FFFFFF"
+          strokeWidth="1"
+        />
+        {[0, 1, 2, 3].map((stripe) => (
+          <rect
+            key={stripe}
+            x={-24 + stripe * 9}
+            y="-27"
+            width="5"
+            height="5"
+            fill={stripe % 2 === 0 ? color : '#FFFFFF'}
+            opacity="0.9"
+          />
+        ))}
+        <rect
+          x="-26"
+          y="-7"
+          width="35"
+          height="4"
+          rx="2"
+          fill={mixHexColors(accent, '#FFFFFF', 0.16)}
+        />
+        <circle cx="-21" cy="4" r="6" fill="#111827" stroke="#FFFFFF" strokeWidth="1.5" />
+        <circle cx="31" cy="4" r="6" fill="#111827" stroke="#FFFFFF" strokeWidth="1.5" />
+        <circle cx="-21" cy="4" r="2" fill="#94A3B8" />
+        <circle cx="31" cy="4" r="2" fill="#94A3B8" />
+        <rect
+          x="-17"
+          y="-20"
+          width="17"
+          height="7"
+          rx="3.5"
+          fill={color}
+        />
+        <text
+          x="-8.5"
+          y="-15"
+          fill="#FFFFFF"
+          fontSize="6"
+          fontWeight="900"
+          letterSpacing="0.7"
+          textAnchor="middle"
+        >
+          {label}
+        </text>
+        <path
+          className="city-venue__steam city-venue__steam--one"
+          d="M-14 -31 Q-20 -38 -14 -45"
+          fill="none"
+          stroke="#FFFFFF"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        />
+        <path
+          className="city-venue__steam city-venue__steam--two"
+          d="M-4 -31 Q2 -38 -4 -45"
+          fill="none"
+          stroke="#FFFFFF"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        />
+      </g>
+    </g>
+  )
+}
+
+function CafeKiosk({
+  x,
+  y,
+  scale,
+  color,
+  accent,
+  label,
+  palette,
+  animationIndex,
+}) {
+  const darkerColor = mixHexColors(color, '#08111F', 0.26)
+
+  return (
+    <g transform={`translate(${x} ${y}) scale(${scale})`} aria-hidden="true">
+      <g
+        className="city-venue city-cafe"
+        style={{ '--city-venue-delay': `${animationIndex * 110}ms` }}
+      >
+        <ellipse cx="4" cy="8" rx="46" ry="13" fill="#000000" opacity="0.14" />
+        <polygon
+          points="-38,2 2,-17 42,3 2,23"
+          fill={palette.sidewalk}
+          stroke={palette.sceneBorder}
+          strokeWidth="2"
+        />
+        <rect
+          x="-24"
+          y="-34"
+          width="47"
+          height="34"
+          rx="3"
+          fill={darkerColor}
+          stroke={palette.sceneBorder}
+          strokeWidth="2"
+        />
+        <rect
+          x="-18"
+          y="-27"
+          width="35"
+          height="18"
+          rx="2"
+          fill={palette.label}
+          stroke={accent}
+          strokeWidth="2"
+        />
+        <polygon
+          points="-31,-34 0,-50 31,-34 0,-19"
+          fill={color}
+          stroke="#FFFFFF"
+          strokeWidth="1.5"
+        />
+        <path
+          d="M-27 -33 H27 V-25 Q22 -20 17 -25 Q11 -20 5 -25 Q0 -20 -5 -25 Q-11 -20 -17 -25 Q-22 -20 -27 -25 Z"
+          fill={accent}
+          stroke="#FFFFFF"
+          strokeWidth="1"
+        />
+        <rect x="-25" y="-8" width="50" height="7" rx="3" fill={color} />
+        <text
+          x="0"
+          y="-13"
+          fill={palette.labelText}
+          fontSize="8"
+          fontWeight="900"
+          letterSpacing="1"
+          textAnchor="middle"
+        >
+          {label}
+        </text>
+
+        <g className="city-cafe__umbrella" transform="translate(39 -3)">
+          <line x1="0" y1="-15" x2="0" y2="9" stroke={palette.sceneBorder} strokeWidth="2" />
+          <path
+            className="city-cafe__canopy"
+            d="M-14 -14 Q0 -30 14 -14 Z"
+            fill={color}
+            stroke="#FFFFFF"
+            strokeWidth="1.5"
+          />
+          <ellipse cx="0" cy="9" rx="12" ry="5" fill={accent} stroke={palette.sceneBorder} strokeWidth="1.5" />
+          <circle cx="-14" cy="11" r="3" fill={darkerColor} />
+          <circle cx="14" cy="11" r="3" fill={darkerColor} />
+        </g>
+
+        <path
+          className="city-venue__steam city-venue__steam--one"
+          d="M-7 -51 Q-13 -58 -7 -65"
+          fill="none"
+          stroke="#FFFFFF"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+        />
+        <path
+          className="city-venue__steam city-venue__steam--two"
+          d="M5 -53 Q11 -60 5 -67"
+          fill="none"
+          stroke="#FFFFFF"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+        />
+      </g>
+    </g>
+  )
+}
+
+function CityVenues({ palette }) {
+  return (
+    <g>
+      {CITY_VENUES.map((venue, index) =>
+        venue.type === 'truck' ? (
+          <FoodTruck
+            key={venue.id}
+            {...venue}
+            palette={palette}
+            animationIndex={index}
+          />
+        ) : (
+          <CafeKiosk
+            key={venue.id}
+            {...venue}
+            palette={palette}
+            animationIndex={index}
+          />
+        ),
+      )}
+    </g>
+  )
+}
+
 function Fountain({ palette }) {
   const brightWater = mixHexColors(palette.water, '#FFFFFF', 0.34)
 
@@ -1361,7 +1667,8 @@ export default function CityDashboard({
           <desc id="city-scene-description">
             An animated isometric city with one interactive building for each
             ProMana workspace, a central fountain, a metro entrance, moving
-            traffic, and commuters walking toward their offices.
+            traffic, food trucks, cafés, and commuters walking toward their
+            offices.
           </desc>
           <defs>
             <linearGradient id="city-sky" x1="0" y1="0" x2="0" y2="1">
@@ -1513,11 +1820,12 @@ export default function CityDashboard({
               strokeWidth="2"
             />
 
-            <Tree x={487} y={417} palette={palette} scale={0.68} />
-            <Tree x={525} y={411} palette={palette} scale={0.62} />
+            <Tree x={476} y={416} palette={palette} scale={0.64} />
+            <Tree x={498} y={409} palette={palette} scale={0.56} />
             <Tree x={984} y={464} palette={palette} scale={0.76} />
             <Tree x={1036} y={456} palette={palette} scale={0.68} />
 
+            <CityVenues palette={palette} />
             <SubwayEntrance palette={palette} />
             <CityCommuters />
 
