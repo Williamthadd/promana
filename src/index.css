@@ -401,10 +401,18 @@
 .city-traffic {
   transform-box: view-box;
   will-change: transform;
+  animation-duration: var(--city-traffic-duration);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-delay: var(--city-traffic-delay);
 }
 
-.city-traffic--one {
-  animation: city-traffic-one 12s linear infinite;
+.city-traffic--east {
+  animation-name: city-traffic-east;
+}
+
+.city-traffic--west {
+  animation-name: city-traffic-west;
 }
 
 .city-stars circle:nth-child(3n + 1) {
@@ -753,17 +761,31 @@
   }
 }
 
-@keyframes city-traffic-one {
+@keyframes city-traffic-east {
   from {
-    transform: translate(0, 0) rotate(10deg);
+    transform: translate(0, 0);
   }
 
   52% {
-    transform: translate(515px, 89px) rotate(10deg);
+    transform: translate(515px, 92px);
   }
 
   to {
-    transform: translate(970px, 136px) rotate(6deg);
+    transform: translate(970px, 137px);
+  }
+}
+
+@keyframes city-traffic-west {
+  from {
+    transform: translate(0, 0);
+  }
+
+  48% {
+    transform: translate(-442px, -48px);
+  }
+
+  to {
+    transform: translate(-957px, -136px);
   }
 }
 

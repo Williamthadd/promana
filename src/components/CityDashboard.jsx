@@ -713,6 +713,154 @@ function Tree({ x, y, palette, scale = 1 }) {
   )
 }
 
+const ROAD_VEHICLES = [
+  {
+    id: 'cyan-car',
+    type: 'car',
+    direction: 'east',
+    color: '#22B8CF',
+    duration: '17s',
+    delay: '-1s',
+  },
+  {
+    id: 'violet-car',
+    type: 'car',
+    direction: 'west',
+    color: PROMANA_SECONDARY,
+    duration: '18s',
+    delay: '-8s',
+  },
+  {
+    id: 'orange-car',
+    type: 'car',
+    direction: 'east',
+    color: '#F97316',
+    duration: '19s',
+    delay: '-13s',
+  },
+  {
+    id: 'pink-car',
+    type: 'car',
+    direction: 'west',
+    color: '#EC4899',
+    duration: '16s',
+    delay: '-4s',
+  },
+  {
+    id: 'blue-bus',
+    type: 'bus',
+    direction: 'east',
+    color: '#2563EB',
+    duration: '23s',
+    delay: '-17s',
+  },
+  {
+    id: 'green-bus',
+    type: 'bus',
+    direction: 'west',
+    color: '#0D9488',
+    duration: '25s',
+    delay: '-11s',
+  },
+]
+
+function RoadVehicle({ type, direction, color, duration, delay }) {
+  const isBus = type === 'bus'
+  const width = isBus ? 38 : 23
+  const height = isBus ? 14 : 10
+  const x = direction === 'east' ? 105 : 1062
+  const y = direction === 'east' ? 410 : 557
+  const lightX = direction === 'east' ? x + width - 2 : x + 2
+
+  return (
+    <g
+      className={`city-traffic city-traffic--${direction}`}
+      style={{
+        '--city-traffic-duration': duration,
+        '--city-traffic-delay': delay,
+      }}
+    >
+      <ellipse
+        cx={x + width / 2}
+        cy={y + height + 3}
+        rx={width * 0.56}
+        ry="3"
+        fill="#000000"
+        opacity="0.18"
+      />
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        rx={isBus ? 3 : 4}
+        fill={color}
+        stroke="#FFFFFF"
+        strokeWidth="1"
+      />
+
+      {isBus ? (
+        <>
+          {[5, 13, 21, 29].map((windowOffset) => (
+            <rect
+              key={windowOffset}
+              x={x + windowOffset}
+              y={y + 2}
+              width="6"
+              height="5"
+              rx="1"
+              fill="#DDF7FF"
+              opacity="0.92"
+            />
+          ))}
+          <rect
+            x={x + 3}
+            y={y + 9}
+            width={width - 6}
+            height="2"
+            rx="1"
+            fill="#FFFFFF"
+            opacity="0.65"
+          />
+        </>
+      ) : (
+        <>
+          <path
+            d={`M ${x + 5} ${y} L ${x + 9} ${y - 4} H ${
+              x + width - 7
+            } L ${x + width - 3} ${y} Z`}
+            fill={mixHexColors(color, '#FFFFFF', 0.22)}
+            stroke="#FFFFFF"
+            strokeWidth="0.8"
+          />
+          <rect
+            x={x + 9}
+            y={y - 3}
+            width={width - 16}
+            height="3"
+            rx="1"
+            fill="#DDF7FF"
+          />
+        </>
+      )}
+
+      <circle cx={x + 6} cy={y + height} r="3" fill="#111827" />
+      <circle cx={x + width - 6} cy={y + height} r="3" fill="#111827" />
+      <circle cx={lightX} cy={y + height * 0.56} r="1.8" fill="#FFF7B2" />
+    </g>
+  )
+}
+
+function RoadTraffic() {
+  return (
+    <g aria-hidden="true">
+      {ROAD_VEHICLES.map((vehicle) => (
+        <RoadVehicle key={vehicle.id} {...vehicle} />
+      ))}
+    </g>
+  )
+}
+
 function Fountain({ palette }) {
   const brightWater = mixHexColors(palette.water, '#FFFFFF', 0.34)
 
@@ -1341,11 +1489,7 @@ export default function CityDashboard({
                 strokeDasharray="26 20"
                 opacity="0.72"
               />
-              <g className="city-traffic city-traffic--one">
-                <rect x="105" y="419" width="22" height="10" rx="4" fill={PROMANA_SECONDARY} />
-                <circle cx="111" cy="429" r="3" fill="#111827" />
-                <circle cx="122" cy="429" r="3" fill="#111827" />
-              </g>
+              <RoadTraffic />
             </g>
 
             <polygon
