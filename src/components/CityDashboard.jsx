@@ -64,8 +64,8 @@ const WORKSPACE_DETAILS = {
 const BUILDING_LAYOUT = [
   {
     id: 'notes',
-    x: 495,
-    y: 360,
+    x: 535,
+    y: 332,
     width: 68,
     depth: 50,
     height: 145,
@@ -82,8 +82,8 @@ const BUILDING_LAYOUT = [
   },
   {
     id: 'launchpad',
-    x: 325,
-    y: 455,
+    x: 368,
+    y: 418,
     width: 84,
     depth: 58,
     height: 112,
@@ -100,7 +100,7 @@ const BUILDING_LAYOUT = [
   },
   {
     id: 'projects',
-    x: 305,
+    x: 347,
     y: 610,
     width: 98,
     depth: 68,
@@ -156,7 +156,9 @@ function createCityPalette(backgroundColor, darkMode) {
       park: mixHexColors('#112A29', PROMANA_PRIMARY, 0.12),
       road: '#111827',
       roadEdge: '#263246',
+      sidewalk: '#526075',
       roadMark: '#90B8C4',
+      water: '#63DDFF',
       building: mixHexColors('#142234', background, 0.11),
       windows: '#A8EDFF',
       windowsDim: '#3B6B79',
@@ -180,7 +182,9 @@ function createCityPalette(backgroundColor, darkMode) {
     park: mixHexColors(background, '#B9E8D4', 0.55),
     road: mixHexColors(background, '#64748B', 0.63),
     roadEdge: mixHexColors(background, '#334155', 0.42),
+    sidewalk: mixHexColors(background, '#F8FAFC', 0.72),
     roadMark: '#F8FAFC',
+    water: '#31BFE8',
     building: mixHexColors(background, '#F8FAFC', 0.63),
     windows: '#DFF8FF',
     windowsDim: '#75BED1',
@@ -709,6 +713,363 @@ function Tree({ x, y, palette, scale = 1 }) {
   )
 }
 
+function Fountain({ palette }) {
+  const brightWater = mixHexColors(palette.water, '#FFFFFF', 0.34)
+
+  return (
+    <g className="city-fountain" aria-hidden="true">
+      <ellipse
+        cx="654"
+        cy="436"
+        rx="47"
+        ry="22"
+        fill="#000000"
+        opacity="0.13"
+      />
+      <ellipse
+        cx="654"
+        cy="431"
+        rx="43"
+        ry="21"
+        fill={mixHexColors(palette.plaza, '#FFFFFF', 0.18)}
+        stroke={palette.sceneBorder}
+        strokeWidth="3"
+      />
+      <ellipse
+        cx="654"
+        cy="429"
+        rx="35"
+        ry="16"
+        fill={mixHexColors(palette.water, palette.plaza, 0.22)}
+        stroke={palette.water}
+        strokeWidth="3"
+      />
+      <ellipse
+        className="city-fountain__ripple city-fountain__ripple--outer"
+        cx="654"
+        cy="429"
+        rx="25"
+        ry="10"
+        fill="none"
+        stroke={brightWater}
+        strokeWidth="2"
+      />
+      <ellipse
+        className="city-fountain__ripple city-fountain__ripple--inner"
+        cx="654"
+        cy="429"
+        rx="13"
+        ry="5"
+        fill="none"
+        stroke="#FFFFFF"
+        strokeWidth="1.5"
+      />
+
+      <rect
+        x="650"
+        y="407"
+        width="8"
+        height="19"
+        rx="3"
+        fill={mixHexColors(palette.sceneBorder, '#FFFFFF', 0.18)}
+      />
+      <ellipse
+        cx="654"
+        cy="407"
+        rx="8"
+        ry="4"
+        fill={palette.water}
+        stroke={brightWater}
+        strokeWidth="2"
+      />
+      <ellipse
+        cx="654"
+        cy="426"
+        rx="11"
+        ry="5"
+        fill={mixHexColors(palette.sceneBorder, '#FFFFFF', 0.12)}
+      />
+
+      <path
+        className="city-fountain__jet city-fountain__jet--left"
+        d="M653 408 Q640 378 626 424"
+        fill="none"
+        stroke={brightWater}
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+      <path
+        className="city-fountain__jet city-fountain__jet--center"
+        d="M654 407 Q654 367 654 391"
+        fill="none"
+        stroke={brightWater}
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+      <path
+        className="city-fountain__jet city-fountain__jet--right"
+        d="M655 408 Q669 378 682 424"
+        fill="none"
+        stroke={brightWater}
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+      <circle
+        className="city-fountain__drop city-fountain__drop--one"
+        cx="637"
+        cy="393"
+        r="3"
+        fill="#FFFFFF"
+      />
+      <circle
+        className="city-fountain__drop city-fountain__drop--two"
+        cx="672"
+        cy="395"
+        r="2.5"
+        fill="#FFFFFF"
+      />
+    </g>
+  )
+}
+
+function SubwayEntrance({ palette }) {
+  const metal = mixHexColors(palette.sidewalk, '#334155', 0.32)
+
+  return (
+    <g className="city-subway" aria-hidden="true">
+      <ellipse cx="530" cy="623" rx="64" ry="18" fill="#000000" opacity="0.14" />
+      <polygon
+        points="472,598 528,570 590,600 533,629"
+        fill={palette.sidewalk}
+        stroke={palette.sceneBorder}
+        strokeWidth="2.5"
+      />
+      <polygon
+        points="489,598 528,579 572,600 532,620"
+        fill="#030712"
+        stroke={metal}
+        strokeWidth="3"
+      />
+      <polygon
+        points="501,597 528,584 558,599 531,613"
+        fill={mixHexColors(palette.road, '#FFFFFF', 0.1)}
+      />
+      {[0, 1, 2, 3].map((step) => (
+        <line
+          key={step}
+          className="city-subway__step"
+          x1={502 + step * 7}
+          y1={600 + step * 3}
+          x2={548 + step * 2}
+          y2={593 + step * 5}
+          stroke={step === 0 ? palette.water : metal}
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          style={{ '--city-step-delay': `${step * 160}ms` }}
+        />
+      ))}
+
+      <path
+        d="M486 597 V570 M486 570 L512 557 M512 557 V584"
+        fill="none"
+        stroke={metal}
+        strokeWidth="4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M551 587 V561 M551 561 L572 572 M572 572 V600"
+        fill="none"
+        stroke={metal}
+        strokeWidth="4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M483 569 L512 555 L555 576 L573 568"
+        fill="none"
+        stroke={palette.water}
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+
+      <line
+        x1="475"
+        y1="591"
+        x2="475"
+        y2="548"
+        stroke={metal}
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+      <circle
+        className="city-subway__sign"
+        cx="475"
+        cy="541"
+        r="14"
+        fill={PROMANA_PRIMARY}
+        stroke="#FFFFFF"
+        strokeWidth="3"
+      />
+      <text
+        x="475"
+        y="546"
+        fill="#FFFFFF"
+        fontSize="13"
+        fontWeight="900"
+        textAnchor="middle"
+      >
+        M
+      </text>
+      <g transform="translate(492 622)">
+        <rect
+          width="73"
+          height="20"
+          rx="10"
+          fill={palette.label}
+          stroke={palette.sceneBorder}
+          strokeWidth="1.5"
+        />
+        <circle cx="12" cy="10" r="4" fill={PROMANA_PRIMARY} />
+        <text
+          x="22"
+          y="14"
+          fill={palette.labelText}
+          fontSize="10"
+          fontWeight="900"
+          letterSpacing="1"
+        >
+          METRO
+        </text>
+      </g>
+    </g>
+  )
+}
+
+const COMMUTERS = [
+  {
+    route: 'projects',
+    color: '#2563EB',
+    skinTone: '#D89B72',
+    delay: '-2s',
+  },
+  {
+    route: 'launchpad',
+    color: '#F97316',
+    skinTone: '#8D5524',
+    delay: '-6.5s',
+  },
+  {
+    route: 'ai',
+    color: PROMANA_SECONDARY,
+    skinTone: '#F0B78B',
+    delay: '-9s',
+  },
+  {
+    route: 'tasks',
+    color: '#0D9488',
+    skinTone: '#C68642',
+    delay: '-4s',
+  },
+  {
+    route: 'calendar',
+    color: '#DB2777',
+    skinTone: '#F1C27D',
+    delay: '-11.5s',
+  },
+]
+
+function CityPerson({ route, color, skinTone, delay }) {
+  return (
+    <g
+      className={`city-commuter city-commuter--${route}`}
+      style={{ '--city-person-delay': delay }}
+    >
+      <ellipse cx="0" cy="4" rx="6" ry="2.5" fill="#000000" opacity="0.2" />
+      <g className="city-person__walker">
+        <circle
+          cx="0"
+          cy="-14"
+          r="4"
+          fill={skinTone}
+          stroke="#FFFFFF"
+          strokeWidth="0.8"
+        />
+        <line
+          x1="0"
+          y1="-10"
+          x2="0"
+          y2="-2"
+          stroke={color}
+          strokeWidth="4.5"
+          strokeLinecap="round"
+        />
+        <line
+          className="city-person__arm city-person__arm--left"
+          x1="-1"
+          y1="-8"
+          x2="-6"
+          y2="-3"
+          stroke={skinTone}
+          strokeWidth="2.2"
+          strokeLinecap="round"
+        />
+        <line
+          className="city-person__arm city-person__arm--right"
+          x1="1"
+          y1="-8"
+          x2="6"
+          y2="-4"
+          stroke={skinTone}
+          strokeWidth="2.2"
+          strokeLinecap="round"
+        />
+        <line
+          className="city-person__leg city-person__leg--left"
+          x1="-1"
+          y1="-2"
+          x2="-5"
+          y2="4"
+          stroke="#182235"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+        />
+        <line
+          className="city-person__leg city-person__leg--right"
+          x1="1"
+          y1="-2"
+          x2="5"
+          y2="4"
+          stroke="#182235"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+        />
+        <rect
+          className="city-person__bag"
+          x="5"
+          y="-5"
+          width="5"
+          height="6"
+          rx="1"
+          fill="#172033"
+          stroke="#FFFFFF"
+          strokeWidth="0.5"
+        />
+      </g>
+    </g>
+  )
+}
+
+function CityCommuters() {
+  return (
+    <g className="city-commuters" aria-hidden="true">
+      {COMMUTERS.map((commuter) => (
+        <CityPerson key={commuter.route} {...commuter} />
+      ))}
+    </g>
+  )
+}
+
 export default function CityDashboard({
   activeWorkspace,
   onSelectWorkspace,
@@ -851,7 +1212,8 @@ export default function CityDashboard({
           <title id="city-scene-title">Interactive ProMana City</title>
           <desc id="city-scene-description">
             An animated isometric city with one interactive building for each
-            ProMana workspace.
+            ProMana workspace, a central fountain, a metro entrance, moving
+            traffic, and commuters walking toward their offices.
           </desc>
           <defs>
             <linearGradient id="city-sky" x1="0" y1="0" x2="0" y2="1">
@@ -862,6 +1224,9 @@ export default function CityDashboard({
               <stop offset="0%" stopColor={PROMANA_PRIMARY} stopOpacity="0.26" />
               <stop offset="100%" stopColor={PROMANA_PRIMARY} stopOpacity="0" />
             </radialGradient>
+            <clipPath id="city-platform-clip">
+              <polygon points="600,202 1140,466 600,698 60,466" />
+            </clipPath>
             <filter id="city-soft-shadow" x="-30%" y="-30%" width="160%" height="180%">
               <feDropShadow
                 dx="0"
@@ -936,39 +1301,52 @@ export default function CityDashboard({
               strokeWidth="3"
             />
 
-            <polygon
-              points="98,446 165,413 1097,551 1028,585"
-              fill={palette.roadEdge}
-            />
-            <polygon
-              points="101,438 166,406 1101,544 1031,579"
-              fill={palette.road}
-            />
-            <polygon
-              points="343,328 401,300 877,631 818,659"
-              fill={palette.roadEdge}
-            />
-            <polygon
-              points="350,322 403,296 884,625 826,653"
-              fill={palette.road}
-            />
+            <g clipPath="url(#city-platform-clip)">
+              {[
+                'M110 421 L620 510 L1095 555',
+              ].map((roadPath) => (
+                <g key={roadPath}>
+                  <path
+                    d={roadPath}
+                    fill="none"
+                    stroke={palette.roadEdge}
+                    strokeWidth="82"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d={roadPath}
+                    fill="none"
+                    stroke={palette.sidewalk}
+                    strokeWidth="72"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d={roadPath}
+                    fill="none"
+                    stroke={palette.road}
+                    strokeWidth="58"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </g>
+              ))}
 
-            <path
-              d="M130 430L1067 560"
-              fill="none"
-              stroke={palette.roadMark}
-              strokeWidth="4"
-              strokeDasharray="26 20"
-              opacity="0.72"
-            />
-            <path
-              d="M376 311L856 640"
-              fill="none"
-              stroke={palette.roadMark}
-              strokeWidth="4"
-              strokeDasharray="25 20"
-              opacity="0.7"
-            />
+              <path
+                d="M110 421 L620 510 L1095 555"
+                fill="none"
+                stroke={palette.roadMark}
+                strokeWidth="4"
+                strokeDasharray="26 20"
+                opacity="0.72"
+              />
+              <g className="city-traffic city-traffic--one">
+                <rect x="105" y="419" width="22" height="10" rx="4" fill={PROMANA_SECONDARY} />
+                <circle cx="111" cy="429" r="3" fill="#111827" />
+                <circle cx="122" cy="429" r="3" fill="#111827" />
+              </g>
+            </g>
 
             <polygon
               points="570,430 654,390 738,432 653,474"
@@ -976,27 +1354,10 @@ export default function CityDashboard({
               stroke={palette.sceneBorder}
               strokeWidth="3"
             />
-            <ellipse
-              cx="654"
-              cy="431"
-              rx="36"
-              ry="17"
-              fill={mixHexColors(PROMANA_PRIMARY, palette.plaza, 0.4)}
-              stroke={PROMANA_PRIMARY}
-              strokeWidth="3"
-            />
-            <ellipse
-              className="city-plaza-pulse"
-              cx="654"
-              cy="431"
-              rx="15"
-              ry="7"
-              fill={PROMANA_PRIMARY}
-              opacity="0.82"
-            />
+            <Fountain palette={palette} />
 
             <polygon
-              points="136,478 238,429 318,468 217,518"
+              points="456,420 520,389 568,413 504,445"
               fill={palette.park}
               stroke={palette.sceneBorder}
               strokeWidth="2"
@@ -1008,21 +1369,13 @@ export default function CityDashboard({
               strokeWidth="2"
             />
 
-            <Tree x={180} y={470} palette={palette} scale={0.8} />
-            <Tree x={229} y={464} palette={palette} scale={0.72} />
+            <Tree x={487} y={417} palette={palette} scale={0.68} />
+            <Tree x={525} y={411} palette={palette} scale={0.62} />
             <Tree x={984} y={464} palette={palette} scale={0.76} />
             <Tree x={1036} y={456} palette={palette} scale={0.68} />
 
-            <g className="city-traffic city-traffic--one">
-              <rect x="105" y="419" width="22" height="10" rx="4" fill={PROMANA_SECONDARY} />
-              <circle cx="111" cy="429" r="3" fill="#111827" />
-              <circle cx="122" cy="429" r="3" fill="#111827" />
-            </g>
-            <g className="city-traffic city-traffic--two">
-              <rect x="445" y="343" width="20" height="9" rx="4" fill={PROMANA_PRIMARY} />
-              <circle cx="450" cy="352" r="3" fill="#111827" />
-              <circle cx="461" cy="352" r="3" fill="#111827" />
-            </g>
+            <SubwayEntrance palette={palette} />
+            <CityCommuters />
 
             {BUILDING_LAYOUT.map((building, index) => (
               <CityBuilding

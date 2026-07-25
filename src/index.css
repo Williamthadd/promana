@@ -272,10 +272,117 @@
   animation: city-beacon 1.8s ease-in-out infinite;
 }
 
-.city-plaza-pulse {
+.city-fountain {
+  filter: drop-shadow(0 7px 7px rgba(8, 145, 178, 0.2));
+}
+
+.city-fountain__ripple {
   transform-box: fill-box;
   transform-origin: center;
-  animation: city-plaza-pulse 2.4s ease-out infinite;
+}
+
+.city-fountain__ripple--outer {
+  animation: city-fountain-ripple 2s ease-out infinite;
+}
+
+.city-fountain__ripple--inner {
+  animation: city-fountain-ripple 2s 800ms ease-out infinite;
+}
+
+.city-fountain__jet {
+  stroke-dasharray: 12 7;
+  animation: city-fountain-flow 1.05s linear infinite;
+}
+
+.city-fountain__jet--left {
+  animation-delay: -320ms;
+}
+
+.city-fountain__jet--right {
+  animation-delay: -640ms;
+}
+
+.city-fountain__drop {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: city-fountain-drop 1.2s ease-in-out infinite;
+}
+
+.city-fountain__drop--two {
+  animation-delay: -600ms;
+}
+
+.city-subway__sign {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: city-subway-sign 2.2s ease-in-out infinite;
+}
+
+.city-subway__step {
+  animation: city-subway-step 1.3s ease-in-out infinite;
+  animation-delay: var(--city-step-delay);
+}
+
+.city-commuter {
+  opacity: 0;
+  transform-box: view-box;
+  will-change: opacity, transform;
+  animation-duration: 14s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-delay: var(--city-person-delay);
+}
+
+.city-commuter--projects {
+  animation-name: city-commuter-projects;
+}
+
+.city-commuter--launchpad {
+  animation-name: city-commuter-launchpad;
+  animation-duration: 15s;
+}
+
+.city-commuter--ai {
+  animation-name: city-commuter-ai;
+  animation-duration: 16s;
+}
+
+.city-commuter--tasks {
+  animation-name: city-commuter-tasks;
+  animation-duration: 14.5s;
+}
+
+.city-commuter--calendar {
+  animation-name: city-commuter-calendar;
+  animation-duration: 16.5s;
+}
+
+.city-person__walker {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: city-person-bob 360ms ease-in-out infinite alternate;
+}
+
+.city-person__arm,
+.city-person__leg {
+  transform-box: fill-box;
+  transform-origin: center top;
+}
+
+.city-person__arm--left,
+.city-person__leg--right {
+  animation: city-person-limb-left 480ms ease-in-out infinite alternate;
+}
+
+.city-person__arm--right,
+.city-person__leg--left {
+  animation: city-person-limb-right 480ms ease-in-out infinite alternate;
+}
+
+.city-person__bag {
+  transform-box: fill-box;
+  transform-origin: top left;
+  animation: city-person-bag 480ms ease-in-out infinite alternate;
 }
 
 .city-cloud {
@@ -298,10 +405,6 @@
 
 .city-traffic--one {
   animation: city-traffic-one 12s linear infinite;
-}
-
-.city-traffic--two {
-  animation: city-traffic-two 10s linear infinite;
 }
 
 .city-stars circle:nth-child(3n + 1) {
@@ -360,15 +463,273 @@
   }
 }
 
-@keyframes city-plaza-pulse {
+@keyframes city-fountain-ripple {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.65);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes city-fountain-flow {
+  to {
+    stroke-dashoffset: -38;
+  }
+}
+
+@keyframes city-fountain-drop {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(4px) scale(0.72);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateY(-5px) scale(1);
+  }
+}
+
+@keyframes city-subway-sign {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgba(49, 172, 211, 0));
+    transform: scale(0.96);
+  }
+
+  50% {
+    filter: drop-shadow(0 0 8px rgba(49, 172, 211, 0.7));
+    transform: scale(1.06);
+  }
+}
+
+@keyframes city-subway-step {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes city-commuter-projects {
+  0% {
+    opacity: 0;
+    transform: translate(530px, 590px);
+  }
+
+  8% {
+    opacity: 1;
+    transform: translate(527px, 581px);
+  }
+
+  38% {
+    opacity: 1;
+    transform: translate(468px, 595px);
+  }
+
+  72% {
+    opacity: 1;
+    transform: translate(414px, 604px);
+  }
+
+  96% {
+    opacity: 1;
+    transform: translate(379px, 590px);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(372px, 587px);
+  }
+}
+
+@keyframes city-commuter-launchpad {
+  0% {
+    opacity: 0;
+    transform: translate(530px, 590px);
+  }
+
+  8% {
+    opacity: 1;
+    transform: translate(525px, 579px);
+  }
+
+  35% {
+    opacity: 1;
+    transform: translate(485px, 545px);
+  }
+
+  68% {
+    opacity: 1;
+    transform: translate(438px, 495px);
+  }
+
+  96% {
+    opacity: 1;
+    transform: translate(398px, 432px);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(392px, 426px);
+  }
+}
+
+@keyframes city-commuter-ai {
+  0% {
+    opacity: 0;
+    transform: translate(530px, 590px);
+  }
+
+  8% {
+    opacity: 1;
+    transform: translate(533px, 579px);
+  }
+
+  34% {
+    opacity: 1;
+    transform: translate(560px, 551px);
+  }
+
+  62% {
+    opacity: 1;
+    transform: translate(592px, 506px);
+  }
+
+  82% {
+    opacity: 1;
+    transform: translate(606px, 458px);
+  }
+
+  91% {
+    opacity: 1;
+    transform: translate(628px, 420px);
+  }
+
+  97% {
+    opacity: 1;
+    transform: translate(679px, 401px);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(690px, 401px);
+  }
+}
+
+@keyframes city-commuter-tasks {
+  0% {
+    opacity: 0;
+    transform: translate(530px, 590px);
+  }
+
+  8% {
+    opacity: 1;
+    transform: translate(535px, 583px);
+  }
+
+  35% {
+    opacity: 1;
+    transform: translate(613px, 615px);
+  }
+
+  69% {
+    opacity: 1;
+    transform: translate(717px, 621px);
+  }
+
+  96% {
+    opacity: 1;
+    transform: translate(806px, 605px);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(815px, 602px);
+  }
+}
+
+@keyframes city-commuter-calendar {
+  0% {
+    opacity: 0;
+    transform: translate(530px, 590px);
+  }
+
+  8% {
+    opacity: 1;
+    transform: translate(535px, 580px);
+  }
+
+  32% {
+    opacity: 1;
+    transform: translate(622px, 568px);
+  }
+
+  61% {
+    opacity: 1;
+    transform: translate(730px, 544px);
+  }
+
+  88% {
+    opacity: 1;
+    transform: translate(824px, 508px);
+  }
+
+  97% {
+    opacity: 1;
+    transform: translate(895px, 478px);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(903px, 473px);
+  }
+}
+
+@keyframes city-person-bob {
   from {
-    opacity: 0.7;
-    transform: scale(0.6);
+    transform: translateY(0);
   }
 
   to {
-    opacity: 0;
-    transform: scale(2.8);
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes city-person-limb-left {
+  from {
+    transform: rotate(-16deg);
+  }
+
+  to {
+    transform: rotate(16deg);
+  }
+}
+
+@keyframes city-person-limb-right {
+  from {
+    transform: rotate(16deg);
+  }
+
+  to {
+    transform: rotate(-16deg);
+  }
+}
+
+@keyframes city-person-bag {
+  from {
+    transform: rotate(-5deg);
+  }
+
+  to {
+    transform: rotate(8deg);
   }
 }
 
@@ -394,21 +755,15 @@
 
 @keyframes city-traffic-one {
   from {
-    transform: translate(0, 0);
+    transform: translate(0, 0) rotate(10deg);
+  }
+
+  52% {
+    transform: translate(515px, 89px) rotate(10deg);
   }
 
   to {
-    transform: translate(930px, 134px);
-  }
-}
-
-@keyframes city-traffic-two {
-  from {
-    transform: translate(0, 0);
-  }
-
-  to {
-    transform: translate(445px, 304px);
+    transform: translate(970px, 136px) rotate(6deg);
   }
 }
 
@@ -433,12 +788,45 @@
   .city-building__windows,
   .city-building__halo,
   .city-spire__beacon,
-  .city-plaza-pulse,
+  .city-fountain__ripple,
+  .city-fountain__jet,
+  .city-fountain__drop,
+  .city-subway__sign,
+  .city-subway__step,
   .city-cloud,
   .city-traffic,
+  .city-person__walker,
+  .city-person__arm,
+  .city-person__leg,
+  .city-person__bag,
   .city-stars circle {
     animation-duration: 1ms;
     animation-delay: 0ms;
     animation-iteration-count: 1;
+  }
+
+  .city-commuter {
+    animation: none;
+    opacity: 1;
+  }
+
+  .city-commuter--projects {
+    transform: translate(430px, 601px);
+  }
+
+  .city-commuter--launchpad {
+    transform: translate(454px, 507px);
+  }
+
+  .city-commuter--ai {
+    transform: translate(597px, 484px);
+  }
+
+  .city-commuter--tasks {
+    transform: translate(690px, 620px);
+  }
+
+  .city-commuter--calendar {
+    transform: translate(760px, 534px);
   }
 }
