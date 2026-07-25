@@ -1,3 +1,4 @@
+/* global Buffer */
 export default async function handler(request, response) {
   const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`)
   const domain = url.searchParams.get('domain')
@@ -19,7 +20,7 @@ export default async function handler(request, response) {
       response.status(200).send(Buffer.from(buffer))
       return
     }
-  } catch (err) {
+  } catch {
     // Fail silently, fall through to SVG generator
   }
 

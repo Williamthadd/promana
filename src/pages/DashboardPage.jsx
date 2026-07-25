@@ -22,6 +22,7 @@ import AddProjectModal from '../components/AddProjectModal'
 import AiWorkspace from '../components/AiWorkspace'
 import CalendarEntryModal from '../components/CalendarEntryModal'
 import CalendarWorkspace from '../components/CalendarWorkspace'
+import CityDashboard from '../components/CityDashboard'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EditorManagerModal from '../components/EditorManagerModal'
 import Header from '../components/Header'
@@ -114,6 +115,26 @@ const MANUAL_LANGUAGE_OPTIONS = Object.keys(LANGUAGE_COLORS).filter(
   (language) => language !== 'Other',
 )
 
+const DASHBOARD_MODES = new Set([
+  'projects',
+  'launchpad',
+  'notes',
+  'tasks',
+  'calendar',
+  'ai',
+])
+
+function getInitialDashboardMode() {
+  const storedMode = window.localStorage.getItem('proman-dashboard-mode')
+  return DASHBOARD_MODES.has(storedMode) ? storedMode : 'projects'
+}
+
+function getInitialDesignMode() {
+  return window.localStorage.getItem('proman-design-mode') === 'city'
+    ? 'city'
+    : 'classic'
+}
+
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth()
   const {
@@ -149,9 +170,8 @@ export default function DashboardPage() {
     error: limitsError,
   } = useUserLimits(user)
   const { toasts, addToast, removeToast } = useToast()
-  const [dashboardMode, setDashboardMode] = useState(
-    () => window.localStorage.getItem('proman-dashboard-mode') || 'projects',
-  )
+  const [dashboardMode, setDashboardMode] = useState(getInitialDashboardMode)
+  const [designMode, setDesignMode] = useState(getInitialDesignMode)
   const [search, setSearch] = useState('')
   const [launchpadSearch, setLaunchpadSearch] = useState('')
   const [launchpadFilterCategory, setLaunchpadFilterCategory] = useState('all')
@@ -193,6 +213,7 @@ export default function DashboardPage() {
   const launchpadSearchInputRef = useRef(null)
   const notesSearchInputRef = useRef(null)
   const tasksSearchInputRef = useRef(null)
+  const workspaceContentRef = useRef(null)
   const maxProjects = limits.maxProjects
   const maxWebsites = limits.maxWebsites
   const maxNotes = limits.maxNotes
@@ -243,6 +264,10 @@ export default function DashboardPage() {
   useEffect(() => {
     window.localStorage.setItem('proman-dashboard-mode', dashboardMode)
   }, [dashboardMode])
+
+  useEffect(() => {
+    window.localStorage.setItem('proman-design-mode', designMode)
+  }, [designMode])
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -996,6 +1021,19 @@ export default function DashboardPage() {
     })
   }
 
+  function openCityWorkspace(workspaceMode) {
+    setDashboardMode(workspaceMode)
+
+    window.setTimeout(() => {
+      workspaceContentRef.current?.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          ? 'auto'
+          : 'smooth',
+        block: 'start',
+      })
+    }, 80)
+  }
+
   if (authLoading || limitsLoading) {
     return (
       <div
@@ -1025,10 +1063,26 @@ export default function DashboardPage() {
         lightBackgroundColor={lightBackgroundColor}
         onChangeLightBackgroundColor={setLightBackgroundColor}
         onResetLightBackgroundColor={resetLightBackgroundColor}
+        designMode={designMode}
+        onChangeDesignMode={setDesignMode}
       />
 
       <main className="relative mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
-        <section className="rounded-3xl border border-white/40 dark:border-white/10 glass-panel-light dark:glass-panel-dark p-8 shadow-xl">
+        {designMode === 'city' ? (
+          <CityDashboard
+            activeWorkspace={dashboardMode}
+            onSelectWorkspace={openCityWorkspace}
+            darkMode={darkMode}
+            lightBackgroundColor={lightBackgroundColor}
+            projectCount={usedProjectCount}
+            launchpadCount={usedWebsiteCount}
+            noteCount={usedNoteCount}
+            taskGroupCount={usedTaskGroupCount}
+            calendarCount={calendarEntries.length}
+          />
+        ) : null}
+
+        <section className={`${designMode === 'city' ? 'hidden' : ''} rounded-3xl border border-white/40 dark:border-white/10 glass-panel-light dark:glass-panel-dark p-8 shadow-xl`}>
           {dashboardMode === 'projects' ? (
             <>
               <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -1342,7 +1396,7 @@ export default function DashboardPage() {
           )}
         </section>
 
-        <div className="flex w-fit max-w-full gap-1 overflow-x-auto rounded-2xl border border-white/40 dark:border-white/10 glass-panel-light dark:glass-panel-dark p-1.5 shadow-md">
+        <div className={`${designMode === 'city' ? 'hidden' : 'flex'} w-fit max-w-full gap-1 overflow-x-auto rounded-2xl border border-white/40 dark:border-white/10 glass-panel-light dark:glass-panel-dark p-1.5 shadow-md`}>
           <button
             type="button"
             onClick={() => setDashboardMode('projects')}
@@ -1480,7 +1534,12 @@ export default function DashboardPage() {
           />
         ) : null}
 
-        {dashboardMode === 'projects' ? (
+        <div
+          id="active-workspace"
+          ref={workspaceContentRef}
+          className="grid scroll-mt-24 gap-8"
+        >
+          {dashboardMode === 'projects' ? (
           <>
             <section className="grid gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <SearchBar
@@ -1933,7 +1992,8 @@ export default function DashboardPage() {
             />
 
           </div>
-        )}
+          )}
+        </div>
       </main>
 
 

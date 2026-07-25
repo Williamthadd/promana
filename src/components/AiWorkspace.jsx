@@ -176,7 +176,9 @@ export default function AiWorkspace({
     }
 
     // Client-side injection pattern check
-    const normalized = activePrompt.replace(/[\s\u200B\u200C\u200D\uFEFF]+/g, ' ').trim()
+    const normalized = activePrompt
+      .replace(/(?:\s|\u200B|\u200C|\u200D|\uFEFF)+/g, ' ')
+      .trim()
     for (const pattern of blockedPatterns) {
       if (pattern.test(normalized)) {
         setPrompt('')

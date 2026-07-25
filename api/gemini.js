@@ -77,7 +77,9 @@ export default async function handler(request, response) {
     /\benv(ironment)?\s*(variable|var|file)/i,
   ]
 
-  const normalizedPrompt = prompt.replace(/[\s\u200B\u200C\u200D\uFEFF]+/g, ' ').trim()
+  const normalizedPrompt = prompt
+    .replace(/(?:\s|\u200B|\u200C|\u200D|\uFEFF)+/g, ' ')
+    .trim()
   for (const pattern of dangerousPatterns) {
     if (pattern.test(normalizedPrompt)) {
       response.status(200).json({

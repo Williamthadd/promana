@@ -6,6 +6,7 @@ import { auth } from '../firebase'
 import { toBackgroundRgba } from '../utils/lightBackground'
 import BackgroundColorControl from './BackgroundColorControl'
 import BrandMark from './BrandMark'
+import DesignModeControl from './DesignModeControl'
 import UserAvatar from './UserAvatar'
 
 export default function Header({
@@ -16,6 +17,8 @@ export default function Header({
   lightBackgroundColor,
   onChangeLightBackgroundColor,
   onResetLightBackgroundColor,
+  designMode,
+  onChangeDesignMode,
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef(null)
@@ -72,6 +75,11 @@ export default function Header({
             lightBackgroundColor={lightBackgroundColor}
             onChange={onChangeLightBackgroundColor}
             onReset={onResetLightBackgroundColor}
+          />
+
+          <DesignModeControl
+            designMode={designMode}
+            onChange={onChangeDesignMode}
           />
 
           <button

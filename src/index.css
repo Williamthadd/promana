@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -188,14 +188,257 @@
   animation: calendar-option-in 160ms ease-out both;
 }
 
+/* ProMana City */
+.city-dashboard {
+  background: var(--city-label);
+  isolation: isolate;
+}
+
+.city-scene-frame {
+  scrollbar-color: var(--city-primary) transparent;
+  scrollbar-width: thin;
+}
+
+.city-scene-frame::-webkit-scrollbar {
+  height: 8px;
+}
+
+.city-scene-frame::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.city-scene-frame::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--city-primary);
+  background-clip: padding-box;
+}
+
+.city-scene {
+  isolation: isolate;
+}
+
+.city-building {
+  cursor: pointer;
+  outline: none;
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: city-building-arrive 720ms cubic-bezier(0.16, 1, 0.3, 1)
+    var(--city-building-delay) backwards;
+  transition:
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 240ms ease;
+}
+
+.city-building:hover,
+.city-building:focus-visible {
+  filter: drop-shadow(0 14px 12px rgba(9, 25, 42, 0.28));
+  transform: translateY(-9px);
+}
+
+.city-building:focus-visible .city-building__hit {
+  stroke: var(--city-accent);
+  stroke-width: 4;
+  stroke-dasharray: 9 7;
+}
+
+.city-building__face,
+.city-building__roof {
+  transition:
+    filter 220ms ease,
+    stroke-width 220ms ease;
+}
+
+.city-building:hover .city-building__face,
+.city-building:focus-visible .city-building__face,
+.city-building--active .city-building__face {
+  filter: brightness(1.1) saturate(1.12);
+  stroke-width: 2.5;
+}
+
+.city-building__windows {
+  animation: city-window-glow 3.6s ease-in-out infinite alternate;
+}
+
+.city-building__halo {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: city-halo-pulse 2.2s ease-in-out infinite;
+}
+
+.city-spire__beacon {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: city-beacon 1.8s ease-in-out infinite;
+}
+
+.city-plaza-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: city-plaza-pulse 2.4s ease-out infinite;
+}
+
+.city-cloud {
+  transform-box: view-box;
+  will-change: transform;
+}
+
+.city-cloud--one {
+  animation: city-cloud-drift-one 22s ease-in-out infinite alternate;
+}
+
+.city-cloud--two {
+  animation: city-cloud-drift-two 27s ease-in-out infinite alternate;
+}
+
+.city-traffic {
+  transform-box: view-box;
+  will-change: transform;
+}
+
+.city-traffic--one {
+  animation: city-traffic-one 12s linear infinite;
+}
+
+.city-traffic--two {
+  animation: city-traffic-two 10s linear infinite;
+}
+
+.city-stars circle:nth-child(3n + 1) {
+  animation: city-star-twinkle 2.2s ease-in-out infinite alternate;
+}
+
+.city-stars circle:nth-child(3n + 2) {
+  animation: city-star-twinkle 3s 700ms ease-in-out infinite alternate;
+}
+
+@keyframes city-building-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(48px) scaleY(0.72);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+@keyframes city-window-glow {
+  from {
+    opacity: 0.72;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes city-halo-pulse {
+  0%,
+  100% {
+    opacity: 0.16;
+    transform: scale(0.86);
+  }
+
+  50% {
+    opacity: 0.35;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes city-beacon {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(0.82);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes city-plaza-pulse {
+  from {
+    opacity: 0.7;
+    transform: scale(0.6);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(2.8);
+  }
+}
+
+@keyframes city-cloud-drift-one {
+  from {
+    transform: translateX(-22px);
+  }
+
+  to {
+    transform: translateX(58px);
+  }
+}
+
+@keyframes city-cloud-drift-two {
+  from {
+    transform: translateX(38px);
+  }
+
+  to {
+    transform: translateX(-46px);
+  }
+}
+
+@keyframes city-traffic-one {
+  from {
+    transform: translate(0, 0);
+  }
+
+  to {
+    transform: translate(930px, 134px);
+  }
+}
+
+@keyframes city-traffic-two {
+  from {
+    transform: translate(0, 0);
+  }
+
+  to {
+    transform: translate(445px, 304px);
+  }
+}
+
+@keyframes city-star-twinkle {
+  from {
+    opacity: 0.35;
+  }
+
+  to {
+    opacity: 0.95;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .calendar-modal-backdrop,
   .calendar-modal-panel,
   .calendar-link-picker,
   .calendar-picker-menu,
   .calendar-selected-chip,
-  .calendar-picker-option {
+  .calendar-picker-option,
+  .city-building,
+  .city-building__windows,
+  .city-building__halo,
+  .city-spire__beacon,
+  .city-plaza-pulse,
+  .city-cloud,
+  .city-traffic,
+  .city-stars circle {
     animation-duration: 1ms;
     animation-delay: 0ms;
+    animation-iteration-count: 1;
   }
 }
