@@ -4,6 +4,7 @@ import { signOut } from 'firebase/auth'
 import { Link, useNavigate } from 'react-router-dom'
 import { auth } from '../firebase'
 import { toBackgroundRgba } from '../utils/lightBackground'
+import { clearGoogleDriveAccessToken } from '../utils/googleDriveAuth'
 import BackgroundColorControl from './BackgroundColorControl'
 import BrandMark from './BrandMark'
 import DesignModeControl from './DesignModeControl'
@@ -43,6 +44,7 @@ export default function Header({
 
   async function handleLogout() {
     try {
+      clearGoogleDriveAccessToken(auth.currentUser?.uid)
       await signOut(auth)
       setIsOpen(false)
       navigate('/login', { replace: true })

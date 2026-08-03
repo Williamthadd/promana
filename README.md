@@ -17,9 +17,10 @@ Instead of navigating directories or digging through browser bookmarks, ProMana 
 * **Fast Navigation**: Keep your primary web platforms, documentation links, and design tools organized.
 * **Custom Categories**: Sort and group shortcuts for quick access, and pin your most-visited websites.
 
-### 📝 Notes & Snippets Workspace
+### 📝 Notes, Docs & Images Workspace
 * **Code Snippets**: Save reusable boilerplate, SQL scripts, shell commands, and configs with language labels.
-* **Markdown Reference**: Create syntax-highlighted notes to keep reference guides and deployment wikis at hand.
+* **Document Shelf**: Store and preview PDF, DOCX, XLSX, CSV, PNG, JPG, JPEG, and GIF files.
+* **Clipboard Capture**: Paste screenshots directly into the upload area with `Ctrl+V` or `Cmd+V`.
 
 ### 📋 Tasks Workspace
 * **Focused Checklists**: Break down complex objectives into dedicated task groups.
@@ -38,7 +39,8 @@ Instead of navigating directories or digging through browser bookmarks, ProMana 
 
 ## 🛠️ Tech Stack & Architecture
 * **Frontend**: React 19, Vite 8, Tailwind CSS, Lucide React icons.
-* **Database & Auth**: Firebase / Firestore integration with local mock fallbacks when keys are unconfigured.
+* **Database & Auth**: Firebase Authentication and Firestore.
+* **File Storage**: Google Drive API authorized by each user's Firebase Google Sign-In session.
 * **AI Engine**: Node.js serverless API routes using `@google/genai` (targeting `gemini-3.5-flash` and `gemini-3.1-flash-lite`).
 
 ---
@@ -55,19 +57,22 @@ npm install
 ```
 
 ### 3. Environment Setup
-Configure your local environment variables by copying `.env.example` or editing `.env`:
-```env
-# Firebase Configuration (Optional, falls back to local mocks if empty)
-VITE_FIREBASE_API_KEY=your_firebase_api_key
-VITE_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
-VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
+Copy `.env.example` to `.env` and configure Firebase plus the server-only API values. The app does not require a Google Drive client secret or refresh token.
 
-# Gemini API Key (Required for AI Workspace features)
-GEMINI_API_KEY=your_gemini_api_key
-```
+### 4. Google Drive Setup
+The Docs & Images workspace stores Firestore metadata and Drive folder settings under each user. Binary files are uploaded to the private Google Drive folder selected by that user.
 
-### 4. Running the Development Server
-Launch the local dev server:
+1. In Google Cloud Console, enable **Google Drive API**.
+2. Enable **Google** in Firebase Authentication and add every local/production app domain under Firebase Authentication's **Authorized domains**.
+3. Configure the Google Cloud OAuth consent screen for the Firebase project's OAuth client and include `https://www.googleapis.com/auth/drive`.
+4. Add `FIREBASE_WEB_API_KEY` to the local and Vercel server environments.
+5. In Docs & Images, paste a private Drive folder ID or folder URL and click **Save folder**. The Google account used by ProMana must own the folder or have **Editor** access.
+6. Add test users while OAuth is in **Testing**. The Drive scope is restricted, so complete Google's OAuth verification requirements before a public release.
+
+The selected folder ID is stored at `users/{uid}/settings/googleDrive`. Google Sign-In returns a temporary Drive access token to the browser. ProMana keeps it only in the current tab's `sessionStorage`, verifies that its Google email matches the Firebase email, and asks the user to reconnect after the token expires or the folder setting changes. No Drive token is stored in Firestore or in the server environment.
+
+### 5. Running the Development Server
+Launch the app and its local API middleware with Vite:
 ```bash
 npm run dev
 ```

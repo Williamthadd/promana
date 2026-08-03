@@ -15,6 +15,10 @@ import { auth, db } from '../firebase'
 import useAuth from '../hooks/useAuth'
 import useLightBackgroundColor from '../hooks/useLightBackgroundColor'
 import reportAuthFailure from '../utils/authFailureReporter'
+import {
+  GOOGLE_DRIVE_SCOPE,
+  saveGoogleDriveAccessToken,
+} from '../utils/googleDriveAuth'
 import fetchIpAddress from '../utils/ipFetcher'
 
 function GoogleIcon() {
@@ -108,7 +112,11 @@ export default function LoginPage() {
     setLightBackgroundColor,
     resetLightBackgroundColor,
   } = useLightBackgroundColor()
-  const googleProvider = useMemo(() => new GoogleAuthProvider(), [])
+  const googleProvider = useMemo(() => {
+    const provider = new GoogleAuthProvider()
+    provider.addScope(GOOGLE_DRIVE_SCOPE)
+    return provider
+  }, [])
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode)
@@ -186,6 +194,12 @@ export default function LoginPage() {
 
     try {
       const credentials = await signInWithPopup(auth, googleProvider)
+      const googleCredential =
+        GoogleAuthProvider.credentialFromResult(credentials)
+      saveGoogleDriveAccessToken(
+        credentials.user.uid,
+        googleCredential?.accessToken,
+      )
       const ipAddress = await fetchIpAddress()
 
       await writeLoginLog({

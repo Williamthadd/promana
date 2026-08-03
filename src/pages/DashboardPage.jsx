@@ -9,7 +9,9 @@ import {
 } from 'firebase/firestore'
 import {
   CalendarDays,
+  Files,
   FolderPlus,
+  Images,
   ListTodo,
   LoaderCircle,
   SearchX,
@@ -24,6 +26,7 @@ import CalendarEntryModal from '../components/CalendarEntryModal'
 import CalendarWorkspace from '../components/CalendarWorkspace'
 import CityDashboard from '../components/CityDashboard'
 import ConfirmDialog from '../components/ConfirmDialog'
+import DocumentsWorkspace from '../components/DocumentsWorkspace'
 import EditorManagerModal from '../components/EditorManagerModal'
 import Header from '../components/Header'
 import LaunchpadGrid from '../components/LaunchpadGrid'
@@ -55,6 +58,7 @@ import { auth, db } from '../firebase'
 import useAuth from '../hooks/useAuth'
 import useCalendarEntries from '../hooks/useCalendarEntries'
 import useCustomEditors from '../hooks/useCustomEditors'
+import useDocuments from '../hooks/useDocuments'
 import useLightBackgroundColor from '../hooks/useLightBackgroundColor'
 import useLaunchpad from '../hooks/useLaunchpad'
 import useNotes from '../hooks/useNotes'
@@ -150,6 +154,11 @@ export default function DashboardPage() {
   } = useLaunchpad()
   const { notes, loading: notesLoading, error: notesError } = useNotes(user?.uid)
   const {
+    documents,
+    loading: documentsLoading,
+    error: documentsError,
+  } = useDocuments(user?.uid)
+  const {
     taskGroups,
     loading: taskGroupsLoading,
     error: taskGroupsError,
@@ -179,6 +188,8 @@ export default function DashboardPage() {
   const [notesFilterType, setNotesFilterType] = useState('all')
   const [notesFilterLanguage, setNotesFilterLanguage] = useState('all')
   const [notesFilterTag, setNotesFilterTag] = useState('all')
+  const [notesWorkspaceView, setNotesWorkspaceView] = useState('notes')
+  const [documentUploadRequest, setDocumentUploadRequest] = useState(0)
   const [tasksSearch, setTasksSearch] = useState('')
   const [tasksFilterStatus, setTasksFilterStatus] = useState('all')
   const [tasksFilterTag, setTasksFilterTag] = useState('all')
@@ -212,6 +223,7 @@ export default function DashboardPage() {
   const searchInputRef = useRef(null)
   const launchpadSearchInputRef = useRef(null)
   const notesSearchInputRef = useRef(null)
+  const documentsSearchInputRef = useRef(null)
   const tasksSearchInputRef = useRef(null)
   const workspaceContentRef = useRef(null)
   const maxProjects = limits.maxProjects
@@ -224,6 +236,7 @@ export default function DashboardPage() {
   const usedProjectCount = projects.length
   const usedWebsiteCount = launchpadItems.length
   const usedNoteCount = notes.length
+  const usedDocumentCount = documents.length
   const usedTaskGroupCount = taskGroups.length
   const totalTaskPointCount = taskGroups.reduce(
     (total, taskGroup) => total + taskGroup.tasks.length,
@@ -285,7 +298,11 @@ export default function DashboardPage() {
       if (dashboardMode === 'launchpad') {
         launchpadSearchInputRef.current?.focus()
       } else if (dashboardMode === 'notes') {
-        notesSearchInputRef.current?.focus()
+        if (notesWorkspaceView === 'documents') {
+          documentsSearchInputRef.current?.focus()
+        } else {
+          notesSearchInputRef.current?.focus()
+        }
       } else if (dashboardMode === 'tasks') {
         tasksSearchInputRef.current?.focus()
       } else if (dashboardMode === 'calendar') {
@@ -299,7 +316,7 @@ export default function DashboardPage() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [dashboardMode])
+  }, [dashboardMode, notesWorkspaceView])
 
   useEffect(() => {
     if (error) {
@@ -1195,63 +1212,119 @@ export default function DashboardPage() {
             </>
           ) : dashboardMode === 'notes' ? (
             <>
-              <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-                <div className="max-w-2xl">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
-                    Notes workspace
-                  </p>
-                  <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
-                    Keep snippets, SQL, config blocks, and text notes one click away.
-                  </h1>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300 font-medium">
-                    Save reusable code, important queries, deployment config, and quick
-                    reference notes with a language label so every box stays readable.
-                  </p>
-                </div>
+              {notesWorkspaceView === 'notes' ? (
+                <>
+                  <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="max-w-2xl">
+                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+                        Notes workspace
+                      </p>
+                      <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                        Keep snippets, SQL, config blocks, and text notes one click away.
+                      </h1>
+                      <p className="mt-3 text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-300">
+                        Save reusable code, important queries, deployment config, and
+                        quick reference notes in cards that stay easy to scan.
+                      </p>
+                    </div>
 
-                <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[26rem]">
-                  <div className="rounded-2xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20 dark:from-blue-500/20 dark:to-cyan-500/5 px-4 py-3 shadow-sm">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-700 dark:text-blue-200">
-                      Notes
+                    <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[26rem]">
+                      <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 px-4 py-3 shadow-sm dark:from-blue-500/20 dark:to-cyan-500/5">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-700 dark:text-blue-200">
+                          Notes
+                        </p>
+                        <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
+                          {usedNoteCount}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/50 px-4 py-3 shadow-sm glass-panel-light dark:border-white/5 dark:glass-panel-dark">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
+                          Pinned
+                        </p>
+                        <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
+                          {notes.filter((note) => note.isPinned).length}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/50 px-4 py-3 shadow-sm glass-panel-light dark:border-white/5 dark:glass-panel-dark">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
+                          Formats
+                        </p>
+                        <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
+                          {availableNoteLanguages.length}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={hasReachedNoteLimit}
+                        onClick={() => openNoteComposer()}
+                        className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 text-sm font-bold text-white shadow-md shadow-blue-500/15 transition-all hover:scale-[1.02] hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-85"
+                      >
+                        <StickyNote className="h-4 w-4" />
+                        {hasReachedNoteLimit ? 'Limit reached' : 'Add note'}
+                      </button>
+                    </div>
+                  </div>
+                  {!isProPlan ? (
+                    <p className="mt-4 text-sm font-medium text-slate-500 dark:text-slate-400">
+                      {hasReachedNoteLimit
+                        ? `${planLabel}: Note limit reached. Each account can only save ${maxNotes} notes here.`
+                        : `${planLabel}: ${usedNoteCount}/${maxNotes} notes used. ${remainingNoteSlots} slot${remainingNoteSlots === 1 ? '' : 's'} left.`}
                     </p>
-                    <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
-                      {usedNoteCount}
+                  ) : null}
+                </>
+              ) : (
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="max-w-2xl">
+                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+                      Docs workspace
+                    </p>
+                    <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                      Keep documents, spreadsheets, and screenshots beside your notes.
+                    </h1>
+                    <p className="mt-3 text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-300">
+                      Upload office files and images, paste fresh screenshots, and
+                      preview important references without leaving ProMana.
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-white/50 dark:border-white/5 glass-panel-light dark:glass-panel-dark px-4 py-3 shadow-sm">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
-                      Pinned
-                    </p>
-                    <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
-                      {notes.filter((note) => note.isPinned).length}
-                    </p>
+
+                  <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[26rem]">
+                    <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 px-4 py-3 shadow-sm dark:from-blue-500/20 dark:to-cyan-500/5">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-700 dark:text-blue-200">
+                        Files
+                      </p>
+                      <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
+                        {usedDocumentCount}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/50 px-4 py-3 shadow-sm glass-panel-light dark:border-white/5 dark:glass-panel-dark">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
+                        Images
+                      </p>
+                      <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
+                        {documents.filter((document) => document.kind === 'image').length}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/50 px-4 py-3 shadow-sm glass-panel-light dark:border-white/5 dark:glass-panel-dark">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
+                        Documents
+                      </p>
+                      <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
+                        {documents.filter((document) => document.kind !== 'image').length}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDocumentUploadRequest((current) => current + 1)
+                      }
+                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 text-sm font-bold text-white shadow-md shadow-blue-500/15 transition-all hover:scale-[1.02] hover:brightness-110 active:scale-[0.98]"
+                    >
+                      <Files className="h-4 w-4" />
+                      Add file
+                    </button>
                   </div>
-                  <div className="rounded-2xl border border-white/50 dark:border-white/5 glass-panel-light dark:glass-panel-dark px-4 py-3 shadow-sm">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
-                      Formats
-                    </p>
-                    <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
-                      {availableNoteLanguages.length}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={hasReachedNoteLimit}
-                    onClick={() => openNoteComposer()}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 text-sm font-bold text-white transition-all hover:brightness-110 shadow-md shadow-blue-500/15 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-85"
-                  >
-                    <StickyNote className="h-4 w-4" />
-                    {hasReachedNoteLimit ? 'Limit reached' : 'Add note'}
-                  </button>
                 </div>
-              </div>
-              {!isProPlan ? (
-                <p className="mt-4 text-sm text-slate-500 dark:text-slate-400 font-medium">
-                  {hasReachedNoteLimit
-                    ? `${planLabel}: Note limit reached. Each account can only save ${maxNotes} notes here.`
-                    : `${planLabel}: ${usedNoteCount}/${maxNotes} notes used. ${remainingNoteSlots} slot${remainingNoteSlots === 1 ? '' : 's'} left.`}
-                </p>
-              ) : null}
+              )}
             </>
           ) : dashboardMode === 'tasks' ? (
             <>
@@ -1667,6 +1740,37 @@ export default function DashboardPage() {
             ) : null}
           </>
         ) : dashboardMode === 'notes' ? (
+          <div className="grid gap-5">
+            <section className="w-fit max-w-full overflow-x-auto rounded-2xl border border-white/50 p-1.5 shadow-md glass-panel-light dark:border-white/10 dark:glass-panel-dark">
+              <div className="flex min-w-max gap-1">
+                <button
+                  type="button"
+                  onClick={() => setNotesWorkspaceView('notes')}
+                  className={
+                    notesWorkspaceView === 'notes'
+                      ? 'inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-500/15 transition'
+                      : 'inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-white/50 dark:text-slate-300 dark:hover:bg-white/5'
+                  }
+                >
+                  <StickyNote className="h-4 w-4" />
+                  Notes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNotesWorkspaceView('documents')}
+                  className={
+                    notesWorkspaceView === 'documents'
+                      ? 'inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-500/15 transition'
+                      : 'inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-white/50 dark:text-slate-300 dark:hover:bg-white/5'
+                  }
+                >
+                  <Images className="h-4 w-4" />
+                  Docs & Images
+                </button>
+              </div>
+            </section>
+
+            {notesWorkspaceView === 'notes' ? (
           <div className="grid gap-4">
             <section className="grid gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <SearchBar
@@ -1752,6 +1856,18 @@ export default function DashboardPage() {
               onTagClick={setNotesFilterTag}
               addToast={addToast}
             />
+          </div>
+            ) : (
+              <DocumentsWorkspace
+                uid={user?.uid}
+                documents={documents}
+                loading={documentsLoading}
+                error={documentsError}
+                addToast={addToast}
+                uploadRequest={documentUploadRequest}
+                searchInputRef={documentsSearchInputRef}
+              />
+            )}
           </div>
         ) : dashboardMode === 'tasks' ? (
           <div className="grid gap-5">
