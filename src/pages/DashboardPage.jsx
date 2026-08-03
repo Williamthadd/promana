@@ -1924,6 +1924,7 @@ export default function DashboardPage() {
           />
         ) : dashboardMode === 'ai' ? (
           <AiWorkspace
+            userId={user?.uid}
             projects={projects}
             launchpadItems={launchpadItems}
             notes={notes}

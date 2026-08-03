@@ -19,6 +19,7 @@ import ProjectCard from './ProjectCard'
 import NoteCard from './NoteCard'
 import TaskGroupCard from './TaskGroupCard'
 import LaunchpadCard from './LaunchpadCard'
+import useAiDailyUsage from '../hooks/useAiDailyUsage'
 
 // Daily credits limit definition
 const DAILY_LIMIT = 15
@@ -66,6 +67,7 @@ function CodeBlockHeader({ language, code, addToast }) {
 }
 
 export default function AiWorkspace({
+  userId,
   projects = [],
   launchpadItems = [],
   notes = [],
@@ -90,29 +92,21 @@ export default function AiWorkspace({
     const saved = localStorage.getItem('proman-ai-chat-history')
     return saved ? JSON.parse(saved) : []
   })
-  const [creditsUsed, setCreditsUsed] = useState(0)
-  const [isRestoring, setIsRestoring] = useState(false)
+  const {
+    creditsUsed,
+    loading: usageLoading,
+    error: usageError,
+    consumeCredit,
+  } = useAiDailyUsage(userId, DAILY_LIMIT)
+  const isRestoring = creditsUsed >= DAILY_LIMIT
+  const remainingCredits = Math.max(0, DAILY_LIMIT - creditsUsed)
+  const usageUnavailable = usageLoading || Boolean(usageError)
+  const aiInteractionDisabled = loading || usageUnavailable || isRestoring
   const chatEndRef = useRef(null)
 
-  // Initialize and check credits limit from localStorage
+  // Remove the legacy browser counter now that Firestore owns daily usage.
   useEffect(() => {
-    const todayStr = new Date().toLocaleDateString()
-    const stored = localStorage.getItem('proman-ai-credits')
-    if (stored) {
-      const { date, count } = JSON.parse(stored)
-      if (date === todayStr) {
-        setCreditsUsed(count)
-        if (count >= DAILY_LIMIT) {
-          setIsRestoring(true)
-        }
-      } else {
-        localStorage.setItem('proman-ai-credits', JSON.stringify({ date: todayStr, count: 0 }))
-        setCreditsUsed(0)
-      }
-    } else {
-      localStorage.setItem('proman-ai-credits', JSON.stringify({ date: todayStr, count: 0 }))
-      setCreditsUsed(0)
-    }
+    localStorage.removeItem('proman-ai-credits')
   }, [])
 
   // Auto-scroll chat history
@@ -130,17 +124,6 @@ export default function AiWorkspace({
     setMessages([])
     localStorage.removeItem('proman-ai-chat-history')
     addToast('Chat history cleared successfully.', 'info')
-  }
-
-  // Handle credits increments
-  const incrementCredits = () => {
-    const todayStr = new Date().toLocaleDateString()
-    const nextCount = creditsUsed + 1
-    setCreditsUsed(nextCount)
-    localStorage.setItem('proman-ai-credits', JSON.stringify({ date: todayStr, count: nextCount }))
-    if (nextCount >= DAILY_LIMIT) {
-      setIsRestoring(true)
-    }
   }
 
   // Client-side security pre-filter patterns
@@ -194,18 +177,36 @@ export default function AiWorkspace({
       }
     }
 
-    if (creditsUsed >= DAILY_LIMIT) {
-      addToast('Daily free AI limits reached. Please wait for credit restoration.', 'info')
-      setIsRestoring(true)
+    if (!userId) {
+      addToast('You need to be signed in to use the AI assistant.', 'error')
       return
     }
 
-    setPrompt('')
+    if (usageLoading) {
+      addToast('Daily AI usage is still syncing. Please try again shortly.', 'info')
+      return
+    }
+
+    if (usageError) {
+      addToast('Unable to verify your daily AI usage right now.', 'error')
+      return
+    }
+
+    if (creditsUsed >= DAILY_LIMIT) {
+      addToast('Daily free AI limits reached. Please wait for credit restoration.', 'info')
+      return
+    }
+
     const userMessage = { id: Date.now().toString(), sender: 'user', text: activePrompt }
-    setMessages(prev => [...prev, userMessage])
+    let creditReserved = false
     setLoading(true)
 
     try {
+      await consumeCredit()
+      creditReserved = true
+      setPrompt('')
+      setMessages(prev => [...prev, userMessage])
+
       const response = await fetch('/api/gemini', {
         method: 'POST',
         headers: {
@@ -229,7 +230,6 @@ export default function AiWorkspace({
       }
 
       const data = await response.json()
-      incrementCredits()
 
       const aiMessage = {
         id: (Date.now() + 1).toString(),
@@ -240,16 +240,31 @@ export default function AiWorkspace({
       }
       setMessages(prev => [...prev, aiMessage])
     } catch (err) {
-      addToast(err.message, 'error')
-      setMessages(prev => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          sender: 'ai',
-          text: `⚠️ Error: ${err.message || 'Unable to fetch response from Gemini.'}`,
-          isError: true
-        }
-      ])
+      if (err?.code === 'ai/daily-limit') {
+        addToast(
+          'Daily free AI limits reached. Please wait for credit restoration.',
+          'info',
+        )
+        return
+      }
+
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : 'Unable to fetch response from Gemini.'
+      addToast(errorMessage, 'error')
+
+      if (creditReserved) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: (Date.now() + 1).toString(),
+            sender: 'ai',
+            text: `⚠️ Error: ${errorMessage}`,
+            isError: true
+          }
+        ])
+      }
     } finally {
       setLoading(false)
     }
@@ -353,7 +368,7 @@ export default function AiWorkspace({
             <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Daily API Credits</h3>
             <div className="mt-4 flex items-baseline gap-2">
               <span className="text-4xl font-black text-slate-900 dark:text-white">
-                {DAILY_LIMIT - creditsUsed}
+                {usageLoading ? '—' : remainingCredits}
               </span>
               <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">/ {DAILY_LIMIT} remaining</span>
             </div>
@@ -368,11 +383,25 @@ export default function AiWorkspace({
                     ? 'bg-amber-500'
                     : 'bg-blue-600'
                 }`}
-                style={{ width: `${Math.min(100, (creditsUsed / DAILY_LIMIT) * 100)}%` }}
+                style={{ width: `${usageLoading ? 0 : Math.min(100, (creditsUsed / DAILY_LIMIT) * 100)}%` }}
               />
             </div>
 
-            {isRestoring ? (
+            {usageError ? (
+              <div className="mt-4 flex gap-2 rounded-2xl bg-rose-50 p-4 text-xs text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+                <Clock className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Credit sync unavailable.</strong> ProMana cannot verify your daily usage, so AI requests are temporarily paused.
+                </span>
+              </div>
+            ) : usageLoading ? (
+              <div className="mt-4 flex gap-2 rounded-2xl bg-blue-50 p-4 text-xs text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
+                <LoaderCircle className="h-4 w-4 shrink-0 mt-0.5 animate-spin" />
+                <span>
+                  <strong>Syncing daily credits...</strong> Checking your current usage in Firebase.
+                </span>
+              </div>
+            ) : isRestoring ? (
               <div className="mt-4 flex gap-2 rounded-2xl bg-rose-50 p-4 text-xs text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
                 <Clock className="h-4 w-4 shrink-0 mt-0.5 animate-pulse" />
                 <span>
@@ -381,7 +410,7 @@ export default function AiWorkspace({
               </div>
             ) : (
               <p className="mt-3 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-                You have free access to the smart Gemini workspace assistant. Use responsibly!!
+                Usage is synced securely to your Firebase account across browsers and devices.
               </p>
             )}
           </div>
@@ -435,10 +464,15 @@ export default function AiWorkspace({
                     <motion.button
                       key={idx}
                       type="button"
-                      whileHover={{ scale: 1.025, y: -2 }}
-                      whileTap={{ scale: 0.98 }}
+                      whileHover={
+                        aiInteractionDisabled
+                          ? undefined
+                          : { scale: 1.025, y: -2 }
+                      }
+                      whileTap={aiInteractionDisabled ? undefined : { scale: 0.98 }}
                       onClick={() => handleSubmit(null, s.prompt)}
-                      className="flex flex-col text-left p-5 rounded-2xl border border-slate-200/50 dark:border-white/5 bg-white/50 dark:bg-slate-950/20 hover:border-blue-500/30 dark:hover:border-blue-400/30 hover:bg-blue-50/10 dark:hover:bg-blue-500/5 transition duration-300 shadow-sm cursor-pointer group"
+                      disabled={aiInteractionDisabled}
+                      className="flex flex-col text-left p-5 rounded-2xl border border-slate-200/50 dark:border-white/5 bg-white/50 dark:bg-slate-950/20 hover:border-blue-500/30 dark:hover:border-blue-400/30 hover:bg-blue-50/10 dark:hover:bg-blue-500/5 transition duration-300 shadow-sm cursor-pointer group disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <span className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 group-hover:text-blue-500">
                         {s.label}
@@ -642,17 +676,21 @@ export default function AiWorkspace({
               type="text"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              disabled={loading || isRestoring}
+              disabled={aiInteractionDisabled}
               placeholder={
-                isRestoring
-                  ? "AI limits reached... wait for credit reset"
-                  : "Type standard query or search workspace components..."
+                usageLoading
+                  ? "Syncing daily AI usage..."
+                  : usageError
+                    ? "AI usage is temporarily unavailable"
+                    : isRestoring
+                      ? "AI limits reached... wait for credit reset"
+                      : "Type standard query or search workspace components..."
               }
               className="w-full rounded-2xl border border-slate-200 bg-white/80 dark:bg-slate-950 dark:border-white/10 pl-6 pr-16 py-4 text-sm text-slate-900 placeholder:text-slate-400 focus:placeholder:text-slate-300 dark:text-white outline-none transition duration-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:bg-slate-50 dark:disabled:bg-slate-900 disabled:text-slate-400 shadow-md"
             />
             <button
               type="submit"
-              disabled={loading || isRestoring || !prompt.trim()}
+              disabled={aiInteractionDisabled || !prompt.trim()}
               className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white transition duration-200 hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 cursor-pointer shadow-md shadow-blue-500/10 hover:scale-[1.03]"
             >
               <Send className="h-4 w-4" />
