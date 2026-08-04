@@ -1,6 +1,7 @@
 /* global Buffer, process */
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024
+const IMAGE_DOWNLOAD_CHUNK_SIZE = 2 * 1024 * 1024
 const UPLOAD_CHUNK_SIZE = 2 * 1024 * 1024
 const UPLOAD_CHUNK_GRANULARITY = 256 * 1024
 const MAX_ENCODED_CHUNK_LENGTH = Math.ceil(UPLOAD_CHUNK_SIZE / 3) * 4
@@ -551,6 +552,82 @@ async function completeUpload(accessToken, response, user, payload) {
   })
 }
 
+async function getDriveImageChunk(accessToken, request, response, user) {
+  const requestUrl = new URL(request.url, 'https://promana.local')
+  const fileId = String(requestUrl.searchParams.get('fileId') ?? '')
+  const offset = Number(requestUrl.searchParams.get('offset') ?? 0)
+
+  if (
+    requestUrl.searchParams.get('action') !== 'image' ||
+    !isValidIdentifier(fileId) ||
+    !Number.isSafeInteger(offset) ||
+    offset < 0
+  ) {
+    throw new ApiError(400, 'Invalid Drive image request.')
+  }
+
+  const file = await getDriveFile(accessToken, fileId)
+
+  if (!file) {
+    throw new ApiError(404, 'The Drive image was not found.')
+  }
+
+  assertFileOwnership(file, user)
+
+  const totalSize = Number(file.size)
+
+  if (
+    !String(file.mimeType ?? '').startsWith('image/') ||
+    !ALLOWED_MIME_TYPES.has(file.mimeType) ||
+    !Number.isSafeInteger(totalSize) ||
+    totalSize <= 0 ||
+    totalSize > MAX_FILE_SIZE ||
+    offset >= totalSize
+  ) {
+    throw new ApiError(400, 'Only supported image files can be copied.')
+  }
+
+  const requestedEnd = Math.min(
+    offset + IMAGE_DOWNLOAD_CHUNK_SIZE,
+    totalSize,
+  )
+  const imageResponse = await driveFetch(
+    accessToken,
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
+    {
+      headers: {
+        Range: `bytes=${offset}-${requestedEnd - 1}`,
+      },
+    },
+  )
+
+  if (!imageResponse.ok && imageResponse.status !== 206) {
+    throw new ApiError(
+      502,
+      await getGoogleError(imageResponse, 'Unable to read the Drive image.'),
+    )
+  }
+
+  const imageChunk = Buffer.from(await imageResponse.arrayBuffer())
+  const nextOffset = offset + imageChunk.length
+
+  if (
+    !imageChunk.length ||
+    imageChunk.length > IMAGE_DOWNLOAD_CHUNK_SIZE ||
+    nextOffset > totalSize
+  ) {
+    throw new ApiError(502, 'Google Drive returned an invalid image chunk.')
+  }
+
+  response.status(200).json({
+    chunkBase64: imageChunk.toString('base64'),
+    mimeType: file.mimeType,
+    nextOffset,
+    totalSize,
+    complete: nextOffset === totalSize,
+  })
+}
+
 async function deleteDriveFile(accessToken, request, response, user) {
   const requestUrl = new URL(request.url, 'https://promana.local')
   const fileId = String(requestUrl.searchParams.get('fileId') ?? '')
@@ -618,12 +695,17 @@ export default async function handler(request, response) {
       throw new ApiError(400, 'Unknown Google Drive action.')
     }
 
+    if (request.method === 'GET') {
+      await getDriveImageChunk(accessToken, request, response, user)
+      return
+    }
+
     if (request.method === 'DELETE') {
       await deleteDriveFile(accessToken, request, response, user)
       return
     }
 
-    response.setHeader('Allow', 'POST, DELETE')
+    response.setHeader('Allow', 'GET, POST, DELETE')
     throw new ApiError(405, 'Method not allowed.')
   } catch (error) {
     const status = error instanceof ApiError ? error.status : 500

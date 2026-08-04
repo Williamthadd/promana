@@ -88,6 +88,155 @@ async function requestDriveApi(accessToken, options = {}) {
   return payload
 }
 
+function decodeBase64Chunk(value) {
+  try {
+    const binaryChunk = window.atob(String(value ?? ''))
+    const bytes = new Uint8Array(binaryChunk.length)
+
+    for (let index = 0; index < binaryChunk.length; index += 1) {
+      bytes[index] = binaryChunk.charCodeAt(index)
+    }
+
+    return bytes
+  } catch {
+    throw new Error('The Drive image returned an invalid data chunk.')
+  }
+}
+
+async function requestDriveImageBlob(accessToken, fileId) {
+  if (!accessToken) {
+    throw new Error('Reconnect Google Drive before copying an image.')
+  }
+
+  const idToken = await auth.currentUser?.getIdToken()
+
+  if (!idToken) {
+    throw new Error('You need to be signed in to copy a Drive image.')
+  }
+
+  const imageChunks = []
+  let offset = 0
+  let expectedSize = null
+  let mimeType = ''
+
+  while (expectedSize === null || offset < expectedSize) {
+    const imageResponse = await fetch(
+      `/api/drive-files?action=image&fileId=${encodeURIComponent(fileId)}&offset=${offset}`,
+      {
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+          'X-Google-Access-Token': accessToken,
+        },
+      },
+    )
+    const payload = await imageResponse.json().catch(() => ({}))
+
+    if (!imageResponse.ok) {
+      const requestError = new Error(
+        payload.error || 'The Drive image could not be downloaded.',
+      )
+      requestError.status = imageResponse.status
+      throw requestError
+    }
+
+    const chunk = decodeBase64Chunk(payload.chunkBase64)
+    const totalSize = Number(payload.totalSize)
+    const nextOffset = Number(payload.nextOffset)
+
+    if (
+      !chunk.length ||
+      !Number.isSafeInteger(totalSize) ||
+      totalSize <= 0 ||
+      nextOffset !== offset + chunk.length ||
+      nextOffset > totalSize ||
+      (expectedSize !== null && expectedSize !== totalSize)
+    ) {
+      throw new Error('The Drive image returned an invalid chunk sequence.')
+    }
+
+    expectedSize = totalSize
+    mimeType = String(payload.mimeType ?? '')
+    imageChunks.push(chunk)
+    offset = nextOffset
+
+    if (Boolean(payload.complete) !== (offset === expectedSize)) {
+      throw new Error('The Drive image returned an invalid completion state.')
+    }
+  }
+
+  return new Blob(imageChunks, { type: mimeType })
+}
+
+async function convertImageBlobToPng(imageBlob) {
+  const objectUrl = URL.createObjectURL(imageBlob)
+
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const nextImage = new window.Image()
+      nextImage.addEventListener('load', () => resolve(nextImage), {
+        once: true,
+      })
+      nextImage.addEventListener(
+        'error',
+        () => reject(new Error('The Drive image could not be decoded.')),
+        { once: true },
+      )
+      nextImage.src = objectUrl
+    })
+    const canvas = document.createElement('canvas')
+    canvas.width = image.naturalWidth
+    canvas.height = image.naturalHeight
+    const context = canvas.getContext('2d')
+
+    if (!context) {
+      throw new Error('This browser cannot prepare the image for copying.')
+    }
+
+    context.drawImage(image, 0, 0)
+
+    return await new Promise((resolve, reject) => {
+      canvas.toBlob((pngBlob) => {
+        if (pngBlob) {
+          resolve(pngBlob)
+          return
+        }
+
+        reject(new Error('The Drive image could not be converted for copying.'))
+      }, 'image/png')
+    })
+  } finally {
+    URL.revokeObjectURL(objectUrl)
+  }
+}
+
+async function copyDriveImageToClipboard(accessToken, document) {
+  const ClipboardItemConstructor = window.ClipboardItem
+
+  if (!window.isSecureContext || !navigator.clipboard?.write || !ClipboardItemConstructor) {
+    throw new Error('Image copying requires a supported browser on HTTPS or localhost.')
+  }
+
+  if (
+    typeof ClipboardItemConstructor.supports === 'function' &&
+    !ClipboardItemConstructor.supports('image/png')
+  ) {
+    throw new Error('This browser does not support copying images.')
+  }
+
+  const clipboardImage = requestDriveImageBlob(
+    accessToken,
+    document.driveFileId,
+  ).then((imageBlob) =>
+    imageBlob.type === 'image/png'
+      ? imageBlob
+      : convertImageBlobToPng(imageBlob),
+  )
+
+  await navigator.clipboard.write([
+    new ClipboardItemConstructor({ 'image/png': clipboardImage }),
+  ])
+}
+
 function readBlobAsBase64(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -152,6 +301,7 @@ export default function DocumentsWorkspace({
   const [uploadProgress, setUploadProgress] = useState(0)
   const [previewDocument, setPreviewDocument] = useState(null)
   const [deletingDocumentId, setDeletingDocumentId] = useState('')
+  const [copyingDocumentId, setCopyingDocumentId] = useState('')
   const [driveAccessToken, setDriveAccessToken] = useState('')
   const [isConnectingDrive, setIsConnectingDrive] = useState(false)
   const [folderInput, setFolderInput] = useState('')
@@ -445,6 +595,47 @@ export default function DocumentsWorkspace({
     }
   }
 
+  async function handleCopyImage(document) {
+    if (!uid || auth.currentUser?.uid !== uid) {
+      addToast('You need to be signed in to copy images.', 'error')
+      return
+    }
+
+    if (document.kind !== 'image' || !document.driveFileId) {
+      addToast('This image is not available for clipboard copying.', 'error')
+      return
+    }
+
+    if (!driveAccessToken) {
+      addToast('Reconnect Google Drive before copying this image.', 'error')
+      return
+    }
+
+    setCopyingDocumentId(document.id)
+
+    try {
+      await copyDriveImageToClipboard(driveAccessToken, document)
+      addToast(
+        `${document.title || document.originalName} copied to the clipboard.`,
+        'success',
+      )
+    } catch (copyError) {
+      if (copyError?.status === 401) {
+        clearGoogleDriveAccessToken(uid)
+        setDriveAccessToken('')
+      }
+
+      addToast(
+        copyError?.name === 'NotAllowedError'
+          ? 'Allow clipboard access in your browser and try again.'
+          : copyError?.message || 'Unable to copy this image.',
+        'error',
+      )
+    } finally {
+      setCopyingDocumentId('')
+    }
+  }
+
   async function handleDelete(document) {
     if (!uid || auth.currentUser?.uid !== uid) {
       addToast('You need to be signed in to remove files.', 'error')
@@ -501,22 +692,20 @@ export default function DocumentsWorkspace({
             </p>
             <div
               className={
-                driveAccessToken && driveFolderId
+                driveFolderId
                   ? 'mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200'
                   : 'mt-3 inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 dark:bg-amber-500/10 dark:text-amber-200'
               }
             >
-              {driveAccessToken && driveFolderId ? (
+              {driveFolderId ? (
                 <ShieldCheck className="h-4 w-4" />
               ) : (
                 <Cloud className="h-4 w-4" />
               )}
               <span>
-                {driveAccessToken && driveFolderId
+                {driveFolderId
                   ? `Google Drive connected as ${auth.currentUser?.email}`
-                  : driveFolderId
-                    ? 'Folder saved. Connect the Google account used for ProMana login.'
-                    : 'Add your Google Drive folder below to get started.'}
+                  : 'Add your Google Drive folder below to get started.'}
               </span>
             </div>
             <div className="mt-4 max-w-2xl">
@@ -576,12 +765,16 @@ export default function DocumentsWorkspace({
             >
               {isConnectingDrive ? (
                 <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : driveAccessToken ? (
+              ) : driveFolderId ? (
                 <ShieldCheck className="h-4 w-4" />
               ) : (
                 <Cloud className="h-4 w-4" />
               )}
-              {isConnectingDrive ? 'Connecting...' : driveAccessToken ? 'Reconnect Drive' : 'Connect Drive'}
+              {isConnectingDrive
+                ? 'Connecting...'
+                : driveFolderId
+                  ? 'Reconnect Drive'
+                  : 'Connect Drive'}
             </button>
             <button
               type="button"
@@ -693,7 +886,9 @@ export default function DocumentsWorkspace({
               key={document.id}
               document={document}
               onPreview={setPreviewDocument}
+              onCopyImage={handleCopyImage}
               onDelete={handleDelete}
+              isCopying={copyingDocumentId === document.id}
               isDeleting={deletingDocumentId === document.id}
             />
           ))}

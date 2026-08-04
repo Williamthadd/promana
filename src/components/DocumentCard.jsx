@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import {
+  Copy,
   Download,
   Eye,
   FileImage,
   FileSpreadsheet,
   FileText,
+  LoaderCircle,
   Trash2,
 } from 'lucide-react'
 import {
@@ -17,7 +19,9 @@ import ConfirmDialog from './ConfirmDialog'
 export default function DocumentCard({
   document,
   onPreview,
+  onCopyImage,
   onDelete,
+  isCopying,
   isDeleting,
 }) {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
@@ -70,7 +74,13 @@ export default function DocumentCard({
             Added {formatRelativeTime(document.createdAt)}
           </p>
 
-          <div className="mt-auto grid grid-cols-[1fr_auto_auto] gap-2">
+          <div
+            className={
+              document.kind === 'image'
+                ? 'mt-auto grid grid-cols-[1fr_auto_auto_auto] gap-2'
+                : 'mt-auto grid grid-cols-[1fr_auto_auto] gap-2'
+            }
+          >
             <button
               type="button"
               onClick={() => onPreview(document)}
@@ -79,6 +89,22 @@ export default function DocumentCard({
               <Eye className="h-4 w-4 shrink-0" />
               Preview
             </button>
+            {document.kind === 'image' ? (
+              <button
+                type="button"
+                disabled={isCopying}
+                onClick={() => void onCopyImage(document)}
+                title="Copy image to clipboard"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 text-slate-500 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-600 disabled:cursor-wait disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:border-emerald-500/30 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
+                aria-label={`Copy ${document.originalName} to clipboard`}
+              >
+                {isCopying ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </button>
+            ) : null}
             {document.downloadUrl ? (
               <a
                 href={document.downloadUrl}
