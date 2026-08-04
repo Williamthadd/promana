@@ -83,54 +83,74 @@ export default function EditorManagerModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/60 px-4 py-6"
+      className="calendar-modal-backdrop fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 px-3 py-3 backdrop-blur-md sm:items-center sm:px-4 sm:py-6"
       onClick={onClose}
     >
       <section
-        className="w-full max-w-2xl overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+        className="calendar-modal-panel relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/40 p-5 shadow-2xl glass-panel-light dark:border-white/10 dark:glass-panel-dark sm:max-h-[calc(100dvh-3rem)] sm:p-7"
         onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="editor-manager-title"
       >
-        <div className="flex items-start justify-between gap-4 border-b border-gray-100 p-6 dark:border-slate-800">
+        <div className="flex shrink-0 items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
-              Project launchers
+            <p className="text-sm font-bold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+              Projects workspace
             </p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            <h2
+              id="editor-manager-title"
+              className="mt-2 text-2xl font-black tracking-tight text-slate-950 dark:text-white sm:text-3xl"
+            >
               Manage IDEs
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-              Add a custom application URI prefix once and use it from every project
-              card on this account.
+            <p className="mt-2 text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-300">
+              Add custom project launchers once, then use them from every project
+              card in your workspace.
             </p>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 text-slate-500 transition hover:bg-gray-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            disabled={isSaving}
+            className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-white/40 text-slate-500 transition hover:bg-white/40 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
             aria-label="Close IDE manager"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="max-h-[calc(100vh-12rem)] overflow-y-auto p-6">
-          <div className="rounded-2xl bg-blue-50 p-4 text-sm leading-6 text-blue-900 dark:bg-blue-500/10 dark:text-blue-100">
+        <div className="mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="rounded-2xl border border-blue-200/60 bg-blue-50/70 p-4 text-xs font-medium leading-5 text-blue-900 dark:border-blue-400/15 dark:bg-blue-500/10 dark:text-blue-100">
+            <p className="mb-1 text-sm font-bold">How project launchers work</p>
             ProMana appends the selected project path to your prefix. For example,
-            <code className="mx-1 rounded bg-white/70 px-1.5 py-0.5 font-mono text-xs dark:bg-slate-950/50">
+            <code className="mx-1 rounded-md bg-white/80 px-1.5 py-0.5 font-mono text-[11px] dark:bg-slate-950/60">
               trae://file/
             </code>
             becomes
-            <code className="ml-1 rounded bg-white/70 px-1.5 py-0.5 font-mono text-xs dark:bg-slate-950/50">
+            <code className="ml-1 break-all rounded-md bg-white/80 px-1.5 py-0.5 font-mono text-[11px] dark:bg-slate-950/60">
               trae://file//Users/you/code/project
             </code>
             . The IDE must be installed and registered for that protocol.
           </div>
 
-          <form className="mt-5 grid gap-4" onSubmit={handleAddEditor}>
-            <div className="grid gap-4 sm:grid-cols-2">
+          <form
+            className="mt-5 grid gap-4 rounded-3xl border border-white/40 bg-white/35 p-4 dark:border-white/10 dark:bg-slate-950/30 sm:p-5"
+            onSubmit={handleAddEditor}
+          >
+            <div>
+              <p className="text-sm font-black text-slate-950 dark:text-white">
+                Add a custom IDE
+              </p>
+              <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                Enter the app name and the URI prefix registered by your IDE.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
               <label className="grid gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
                   IDE name
                 </span>
                 <input
@@ -141,12 +161,12 @@ export default function EditorManagerModal({
                     setFormError('')
                   }}
                   placeholder="Trae"
-                  className="rounded-2xl border border-gray-200 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                  className="rounded-2xl border border-white/40 bg-white/80 px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-white/10 dark:bg-slate-950/80 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-400/20"
                 />
               </label>
 
               <label className="grid gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
                   URI prefix
                 </span>
                 <input
@@ -157,23 +177,23 @@ export default function EditorManagerModal({
                     setFormError('')
                   }}
                   placeholder="trae://file/"
-                  className="rounded-2xl border border-gray-200 px-4 py-3 font-mono text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                  className="rounded-2xl border border-white/40 bg-white/80 px-4 py-3 font-mono text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-white/10 dark:bg-slate-950/80 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-400/20"
                 />
               </label>
             </div>
 
-            <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-700">
+            <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-blue-200/70 bg-blue-50/50 p-4 dark:border-blue-400/15 dark:bg-blue-500/5 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-                  URL preview
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                  Launcher preview
                 </p>
-                <p className="mt-2 truncate font-mono text-xs text-slate-700 dark:text-slate-200">
+                <p className="mt-2 break-all font-mono text-xs font-medium text-slate-700 dark:text-slate-200">
                   {`${previewScheme}/Users/you/code/project`}
                 </p>
               </div>
               <button
                 type="submit"
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 text-sm font-bold text-white shadow-md shadow-blue-500/15 transition-all hover:scale-[1.01] hover:brightness-110 active:scale-[0.99]"
               >
                 <Plus className="h-4 w-4" />
                 Add IDE
@@ -181,7 +201,7 @@ export default function EditorManagerModal({
             </div>
 
             {formError ? (
-              <p className="text-sm font-medium text-red-600 dark:text-red-300">
+              <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-600 dark:bg-red-500/10 dark:text-red-300" role="alert">
                 {formError}
               </p>
             ) : null}
@@ -190,24 +210,26 @@ export default function EditorManagerModal({
           <div className="mt-6 grid gap-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-bold text-slate-900 dark:text-white">
+                <p className="text-sm font-black text-slate-950 dark:text-white">
                   Custom IDEs
                 </p>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
                   VS Code, Cursor, and Antigravity remain available automatically.
                 </p>
               </div>
-              <Settings2 className="h-5 w-5 text-slate-400" />
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/70 text-slate-400 shadow-sm dark:bg-slate-950/60">
+                <Settings2 className="h-4 w-4" />
+              </span>
             </div>
 
             {draftEditors.length ? (
               draftEditors.map((editor) => (
                 <div
                   key={editor.id}
-                  className="flex items-center justify-between gap-4 rounded-2xl border border-gray-200 px-4 py-3 dark:border-slate-700"
+                  className="flex items-center justify-between gap-4 rounded-2xl border border-white/40 bg-white/70 px-4 py-3 shadow-sm transition hover:bg-white dark:border-white/10 dark:bg-slate-950/60 dark:hover:bg-slate-950/80"
                 >
                   <div className="min-w-0">
-                    <p className="font-semibold text-slate-900 dark:text-white">
+                    <p className="font-bold text-slate-950 dark:text-white">
                       {editor.name}
                     </p>
                     <p className="mt-1 truncate font-mono text-xs text-slate-500 dark:text-slate-400">
@@ -223,7 +245,7 @@ export default function EditorManagerModal({
                         ),
                       )
                     }
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                    className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-slate-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                     aria-label={`Remove ${editor.name}`}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -231,19 +253,25 @@ export default function EditorManagerModal({
                 </div>
               ))
             ) : (
-              <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                No custom IDEs yet. Add Trae, Qoder, or any app with a registered URI
-                protocol above.
+              <div className="rounded-2xl border border-dashed border-white/50 bg-white/30 px-4 py-6 text-center dark:border-white/10 dark:bg-slate-950/20">
+                <Settings2 className="mx-auto h-6 w-6 text-slate-400" />
+                <p className="mt-3 text-sm font-bold text-slate-700 dark:text-slate-200">
+                  No custom IDEs yet
+                </p>
+                <p className="mx-auto mt-1 max-w-md text-xs font-medium leading-5 text-slate-500 dark:text-slate-400">
+                  Add Trae, Qoder, or any app with a registered URI protocol above.
+                </p>
               </div>
             )}
           </div>
         </div>
 
-        <div className="flex flex-wrap justify-end gap-3 border-t border-gray-100 p-6 dark:border-slate-800">
+        <div className="mt-6 flex shrink-0 flex-wrap justify-end gap-3 border-t border-white/20 pt-4 dark:border-white/5">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            disabled={isSaving}
+            className="cursor-pointer rounded-2xl border border-white/40 bg-white/80 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-950/80 dark:text-slate-200 dark:hover:bg-slate-950"
           >
             Cancel
           </button>
@@ -251,7 +279,7 @@ export default function EditorManagerModal({
             type="button"
             disabled={isSaving}
             onClick={() => void handleSave()}
-            className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-80"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 px-5 py-3 text-sm font-bold text-white shadow-md shadow-blue-500/15 transition-all hover:scale-[1.01] hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-80"
           >
             {isSaving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
             {isSaving ? 'Saving IDEs...' : 'Save IDEs'}
