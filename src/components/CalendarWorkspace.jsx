@@ -121,6 +121,7 @@ export default function CalendarWorkspace({
   onCreate,
   onEdit,
   onDelete,
+  onDeleteMonth,
   onOpenProject,
   onOpenTaskGroup,
 }) {
@@ -149,6 +150,15 @@ export default function CalendarWorkspace({
 
     return nextEntriesByDate
   }, [entries])
+  const currentMonthKey = formatDateKey(viewDate).slice(0, 7)
+  const currentMonthLabel = formatCalendarMonth(viewDate)
+  const currentMonthEntries = useMemo(
+    () =>
+      entries.filter((entry) =>
+        entry.dateKey.startsWith(`${currentMonthKey}-`),
+      ),
+    [currentMonthKey, entries],
+  )
   const projectLookup = useMemo(() => createLookup(projects), [projects])
   const launchpadLookup = useMemo(
     () => createLookup(launchpadItems),
@@ -251,6 +261,27 @@ export default function CalendarWorkspace({
               className="rounded-xl border border-white/40 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-white/50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5 cursor-pointer"
             >
               Today
+            </button>
+            <button
+              type="button"
+              disabled={loading || currentMonthEntries.length === 0}
+              onClick={() =>
+                onDeleteMonth?.({
+                  entries: currentMonthEntries,
+                  monthKey: currentMonthKey,
+                  monthLabel: currentMonthLabel,
+                })
+              }
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-red-200/70 bg-red-50/70 px-4 py-2.5 text-sm font-bold text-red-600 transition hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-45 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
+              title={
+                currentMonthEntries.length
+                  ? `Delete all ${currentMonthEntries.length} targets in ${currentMonthLabel}`
+                  : `No targets to delete in ${currentMonthLabel}`
+              }
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete month
+              {currentMonthEntries.length ? ` (${currentMonthEntries.length})` : ''}
             </button>
             <button
               type="button"

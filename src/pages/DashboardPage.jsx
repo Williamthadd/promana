@@ -6,6 +6,7 @@ import {
   doc,
   Timestamp,
   updateDoc,
+  writeBatch,
 } from 'firebase/firestore'
 import {
   CalendarDays,
@@ -218,6 +219,8 @@ export default function DashboardPage() {
   )
   const [isSavingCalendarEntry, setIsSavingCalendarEntry] = useState(false)
   const [calendarEntryToDelete, setCalendarEntryToDelete] = useState(null)
+  const [calendarMonthToDelete, setCalendarMonthToDelete] = useState(null)
+  const [isDeletingCalendarMonth, setIsDeletingCalendarMonth] = useState(false)
   const [workspaceFocusTarget, setWorkspaceFocusTarget] = useState(null)
 
   const searchInputRef = useRef(null)
@@ -1016,6 +1019,55 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleDeleteCalendarMonth() {
+    if (!user || !calendarMonthToDelete?.entries.length) {
+      return
+    }
+
+    const entriesToDelete = calendarMonthToDelete.entries
+    let deletedCount = 0
+
+    setIsDeletingCalendarMonth(true)
+
+    try {
+      for (let index = 0; index < entriesToDelete.length; index += 450) {
+        const batch = writeBatch(db)
+        const entryBatch = entriesToDelete.slice(index, index + 450)
+
+        entryBatch.forEach((entry) => {
+          batch.delete(
+            doc(db, 'users', user.uid, 'calendarEntries', entry.id),
+          )
+        })
+
+        await batch.commit()
+        deletedCount += entryBatch.length
+      }
+
+      const targetLabel = deletedCount === 1 ? 'target' : 'targets'
+      addToast(
+        `${deletedCount} calendar ${targetLabel} removed from ${calendarMonthToDelete.monthLabel}.`,
+        'success',
+      )
+      setCalendarMonthToDelete(null)
+    } catch {
+      if (deletedCount > 0) {
+        addToast(
+          `${deletedCount} targets were removed, but the remaining targets could not be deleted.`,
+          'error',
+        )
+        setCalendarMonthToDelete(null)
+      } else {
+        addToast(
+          `Unable to remove the targets in ${calendarMonthToDelete.monthLabel} right now.`,
+          'error',
+        )
+      }
+    } finally {
+      setIsDeletingCalendarMonth(false)
+    }
+  }
+
   function openCalendarLinkedProject(project) {
     setFilterLang('all')
     setFilterTag('all')
@@ -1597,6 +1649,17 @@ export default function DashboardPage() {
           onCancel={() => setCalendarEntryToDelete(null)}
         />
 
+        <ConfirmDialog
+          open={Boolean(calendarMonthToDelete)}
+          title={`Delete all targets in ${calendarMonthToDelete?.monthLabel ?? 'this month'}?`}
+          message={`This will permanently delete ${calendarMonthToDelete?.entries.length ?? 0} calendar target${calendarMonthToDelete?.entries.length === 1 ? '' : 's'} in that month. This action cannot be undone.`}
+          confirmLabel="Delete all targets"
+          confirmingLabel="Deleting targets..."
+          isConfirming={isDeletingCalendarMonth}
+          onConfirm={handleDeleteCalendarMonth}
+          onCancel={() => setCalendarMonthToDelete(null)}
+        />
+
         {isEditorManagerOpen ? (
           <EditorManagerModal
             open={isEditorManagerOpen}
@@ -2035,6 +2098,7 @@ export default function DashboardPage() {
             onCreate={openCalendarEntryComposer}
             onEdit={openCalendarEntryEditor}
             onDelete={setCalendarEntryToDelete}
+            onDeleteMonth={setCalendarMonthToDelete}
             onOpenProject={openCalendarLinkedProject}
             onOpenTaskGroup={openCalendarLinkedTaskGroup}
           />

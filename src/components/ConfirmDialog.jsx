@@ -6,6 +6,9 @@ export default function ConfirmDialog({
   message,
   onConfirm,
   onCancel,
+  confirmLabel = 'Remove',
+  confirmingLabel = 'Removing...',
+  isConfirming = false,
 }) {
   if (!open || typeof document === 'undefined') {
     return null
@@ -14,7 +17,7 @@ export default function ConfirmDialog({
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4"
-      onClick={onCancel}
+      onClick={isConfirming ? undefined : onCancel}
     >
       <div
         className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
@@ -30,16 +33,19 @@ export default function ConfirmDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            disabled={isConfirming}
+            className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700"
+            disabled={isConfirming}
+            className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-70"
+            aria-busy={isConfirming}
           >
-            Remove
+            {isConfirming ? confirmingLabel : confirmLabel}
           </button>
         </div>
       </div>
