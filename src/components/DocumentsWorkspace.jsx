@@ -303,6 +303,9 @@ export default function DocumentsWorkspace({
   const [deletingDocumentId, setDeletingDocumentId] = useState('')
   const [copyingDocumentId, setCopyingDocumentId] = useState('')
   const [driveAccessToken, setDriveAccessToken] = useState('')
+  const [isCheckingDriveConnection, setIsCheckingDriveConnection] = useState(
+    () => Boolean(uid),
+  )
   const [isConnectingDrive, setIsConnectingDrive] = useState(false)
   const [folderInput, setFolderInput] = useState('')
   const [isSavingFolder, setIsSavingFolder] = useState(false)
@@ -314,13 +317,61 @@ export default function DocumentsWorkspace({
   const normalizedFolderInput = normalizeDriveFolderId(folderInput)
   const canConnectDrive =
     Boolean(driveFolderId) && normalizedFolderInput === driveFolderId
+  const isDriveConnected =
+    Boolean(driveAccessToken) && canConnectDrive && !isCheckingDriveConnection
 
   useEffect(() => {
-    setDriveAccessToken(getGoogleDriveAccessToken(uid))
-  }, [uid])
+    if (driveFolderLoading) {
+      setIsCheckingDriveConnection(Boolean(uid))
+      return undefined
+    }
+
+    let isCancelled = false
+    const storedAccessToken = getGoogleDriveAccessToken(uid)
+
+    if (!uid || !driveFolderId || !storedAccessToken) {
+      clearGoogleDriveAccessToken(uid)
+      setDriveAccessToken('')
+      setIsCheckingDriveConnection(false)
+      return undefined
+    }
+
+    setIsCheckingDriveConnection(true)
+
+    void requestDriveApi(storedAccessToken, {
+      body: {
+        action: 'verify-folder',
+        folderId: driveFolderId,
+      },
+    })
+      .then(() => {
+        if (!isCancelled) {
+          setDriveAccessToken(storedAccessToken)
+        }
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          clearGoogleDriveAccessToken(uid)
+          setDriveAccessToken('')
+        }
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsCheckingDriveConnection(false)
+        }
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [driveFolderId, driveFolderLoading, uid])
 
   useEffect(() => {
-    if (uploadRequest <= 0 || driveFolderLoading) {
+    if (
+      uploadRequest <= 0 ||
+      driveFolderLoading ||
+      isCheckingDriveConnection
+    ) {
       return
     }
 
@@ -329,10 +380,7 @@ export default function DocumentsWorkspace({
       return
     }
 
-    const storedAccessToken = getGoogleDriveAccessToken(uid)
-
-    if (storedAccessToken && canConnectDrive) {
-      setDriveAccessToken(storedAccessToken)
+    if (isDriveConnected) {
       setIsUploadOpen(true)
       return
     }
@@ -343,6 +391,8 @@ export default function DocumentsWorkspace({
     canConnectDrive,
     driveFolderId,
     driveFolderLoading,
+    isCheckingDriveConnection,
+    isDriveConnected,
     uid,
     uploadRequest,
   ])
@@ -692,20 +742,32 @@ export default function DocumentsWorkspace({
             </p>
             <div
               className={
-                driveFolderId
+                isDriveConnected
                   ? 'mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200'
-                  : 'mt-3 inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 dark:bg-amber-500/10 dark:text-amber-200'
+                  : isCheckingDriveConnection || isConnectingDrive
+                    ? 'mt-3 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 dark:bg-blue-500/10 dark:text-blue-200'
+                    : 'mt-3 inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 dark:bg-amber-500/10 dark:text-amber-200'
               }
             >
-              {driveFolderId ? (
+              {isCheckingDriveConnection || isConnectingDrive ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : isDriveConnected ? (
                 <ShieldCheck className="h-4 w-4" />
               ) : (
                 <Cloud className="h-4 w-4" />
               )}
               <span>
-                {driveFolderId
-                  ? `Google Drive connected as ${auth.currentUser?.email}`
-                  : 'Add your Google Drive folder below to get started.'}
+                {isConnectingDrive
+                  ? 'Connecting Google Drive...'
+                  : isCheckingDriveConnection
+                    ? 'Checking Google Drive connection...'
+                    : isDriveConnected
+                      ? `Google Drive connected as ${auth.currentUser?.email}`
+                      : !driveFolderId
+                        ? 'Add your Google Drive folder below to get started.'
+                        : !canConnectDrive
+                          ? 'Save your folder changes before reconnecting Drive.'
+                          : 'Google Drive disconnected. Reconnect to upload files.'}
               </span>
             </div>
             <div className="mt-4 max-w-2xl">
@@ -756,6 +818,7 @@ export default function DocumentsWorkspace({
               type="button"
               disabled={
                 isConnectingDrive ||
+                isCheckingDriveConnection ||
                 driveFolderLoading ||
                 !canConnectDrive
               }
@@ -778,12 +841,12 @@ export default function DocumentsWorkspace({
             </button>
             <button
               type="button"
-              disabled={!driveAccessToken || !driveFolderId}
+              disabled={!isDriveConnected}
               onClick={() => setIsUploadOpen(true)}
               title={
-                driveAccessToken && driveFolderId
+                isDriveConnected
                   ? undefined
-                  : 'Configure and connect Google Drive first'
+                  : 'Configure and reconnect Google Drive first'
               }
               className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 px-5 py-3 text-sm font-bold text-white shadow-md shadow-blue-500/20 transition hover:scale-[1.02] hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
             >
@@ -859,13 +922,15 @@ export default function DocumentsWorkspace({
             screenshot directly from the clipboard.
           </p>
           <button
-            disabled={!driveAccessToken}
+            disabled={!isDriveConnected}
             type="button"
             onClick={() => setIsUploadOpen(true)}
             className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <FilePlus2 className="h-4 w-4" />
-            {driveAccessToken ? 'Add your first file' : 'Connect Drive above first'}
+            {isDriveConnected
+              ? 'Add your first file'
+              : 'Reconnect Drive above first'}
           </button>
         </section>
       ) : null}

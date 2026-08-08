@@ -276,14 +276,6 @@ function TaskGroupModalForm({ taskGroup, onClose, onSubmit, isSaving }) {
                     started. Drag points or use the arrows to reprioritize them.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={addTask}
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/40 bg-white/80 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-white dark:border-white/10 dark:bg-slate-950/80 dark:text-slate-200 dark:hover:bg-slate-950 cursor-pointer"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add point
-                </button>
               </div>
 
               <div className="mt-4 grid gap-3">
@@ -401,6 +393,14 @@ function TaskGroupModalForm({ taskGroup, onClose, onSubmit, isSaving }) {
                     </button>
                   </div>
                 ))}
+                <button
+                  type="button"
+                  onClick={addTask}
+                  className="mt-1 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-blue-300/70 bg-blue-50/60 px-4 py-3 text-sm font-bold text-blue-700 transition hover:border-blue-400 hover:bg-blue-100/80 dark:border-blue-400/25 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:border-blue-400/40 dark:hover:bg-blue-500/15"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add point
+                </button>
               </div>
             </section>
 
