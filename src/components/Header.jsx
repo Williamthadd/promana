@@ -137,9 +137,7 @@ export default function Header({
                       {user?.email ?? 'Signed in user'}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {user?.uid
-                        ? `User ID: ${user.uid.slice(0, 10)}...`
-                        : 'Firebase account'}
+                      Signed in securely
                     </p>
                   </div>
                 </div>

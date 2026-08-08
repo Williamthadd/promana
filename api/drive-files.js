@@ -1,5 +1,7 @@
 /* global Buffer, process */
 
+import { sendJson } from '../server/apiResponse.js'
+
 const MAX_FILE_SIZE = 25 * 1024 * 1024
 const IMAGE_DOWNLOAD_CHUNK_SIZE = 2 * 1024 * 1024
 const UPLOAD_CHUNK_SIZE = 2 * 1024 * 1024
@@ -404,7 +406,7 @@ async function uploadDriveChunk(response, payload) {
   })
 
   if (uploadResponse.status === 308) {
-    response.status(200).json({
+    sendJson(response, 200, {
       complete: false,
       receivedRange: uploadResponse.headers.get('range') || '',
     })
@@ -421,7 +423,7 @@ async function uploadDriveChunk(response, payload) {
     )
   }
 
-  response.status(200).json({ complete: true })
+  sendJson(response, 200, { complete: true })
 }
 
 async function verifyDriveFolder(accessToken, response, user, payload) {
@@ -432,7 +434,7 @@ async function verifyDriveFolder(accessToken, response, user, payload) {
   }
 
   await assertDriveFolderAccess(accessToken, user, folderId)
-  response.status(200).json({ folderId, verified: true })
+  sendJson(response, 200, { folderId, verified: true })
 }
 
 async function createUploadSession(accessToken, response, user, payload) {
@@ -524,7 +526,7 @@ async function createUploadSession(accessToken, response, user, payload) {
     throw new ApiError(502, 'Google Drive did not return an upload session.')
   }
 
-  response.status(200).json({ uploadUrl, fileId })
+  sendJson(response, 200, { uploadUrl, fileId })
 }
 
 async function completeUpload(accessToken, response, user, payload) {
@@ -543,7 +545,7 @@ async function completeUpload(accessToken, response, user, payload) {
 
   assertFileOwnership(file, user, documentId)
 
-  response.status(200).json({
+  sendJson(response, 200, {
     fileId: file.id,
     name: file.name,
     mimeType: file.mimeType,
@@ -619,7 +621,7 @@ async function getDriveImageChunk(accessToken, request, response, user) {
     throw new ApiError(502, 'Google Drive returned an invalid image chunk.')
   }
 
-  response.status(200).json({
+  sendJson(response, 200, {
     chunkBase64: imageChunk.toString('base64'),
     mimeType: file.mimeType,
     nextOffset,
@@ -639,7 +641,7 @@ async function deleteDriveFile(accessToken, request, response, user) {
   const file = await getDriveFile(accessToken, fileId)
 
   if (!file) {
-    response.status(200).json({ deleted: true })
+    sendJson(response, 200, { deleted: true })
     return
   }
 
@@ -658,7 +660,7 @@ async function deleteDriveFile(accessToken, request, response, user) {
     )
   }
 
-  response.status(200).json({ deleted: true })
+  sendJson(response, 200, { deleted: true })
 }
 
 export default async function handler(request, response) {
@@ -714,7 +716,7 @@ export default async function handler(request, response) {
       console.error('Google Drive API error:', error)
     }
 
-    response.status(status).json({
+    sendJson(response, status, {
       error:
         error?.message || 'The Google Drive request could not be completed.',
     })

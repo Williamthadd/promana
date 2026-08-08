@@ -1,5 +1,6 @@
 /* global process */
 import { GoogleGenAI } from '@google/genai'
+import { sendJson } from '../server/apiResponse.js'
 
 let aiClient = null
 
@@ -23,20 +24,22 @@ function getAiClient() {
 
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
-    response.status(405).json({ error: 'Method not allowed' })
+    sendJson(response, 405, { error: 'Method not allowed' })
     return
   }
 
   const { prompt, workspaceData } = request.body
 
   if (!prompt) {
-    response.status(400).json({ error: 'Prompt is required' })
+    sendJson(response, 400, { error: 'Prompt is required' })
     return
   }
 
   // ─── Layer 1: Input length hard limit ───
   if (typeof prompt !== 'string' || prompt.length > 1000) {
-    response.status(400).json({ error: 'Prompt exceeds the maximum allowed length (1000 characters).' })
+    sendJson(response, 400, {
+      error: 'Prompt exceeds the maximum allowed length (1000 characters).',
+    })
     return
   }
 
@@ -82,7 +85,7 @@ export default async function handler(request, response) {
     .trim()
   for (const pattern of dangerousPatterns) {
     if (pattern.test(normalizedPrompt)) {
-      response.status(200).json({
+      sendJson(response, 200, {
         message: '🛡️ This query was blocked by ProMana\'s security system. I can only help you search, filter, and summarize your own ProMana workspace data (projects, notes, tasks, launchpad shortcuts, and calendar entries). I cannot process requests that attempt to modify instructions, access other accounts, or interact with databases directly.',
         unrelated: true,
         results: []
@@ -94,7 +97,7 @@ export default async function handler(request, response) {
   try {
     getAiClient()
   } catch (err) {
-    response.status(400).json({ error: err.message })
+    sendJson(response, 400, { error: err.message })
     return
   }
 
@@ -283,10 +286,11 @@ ${JSON.stringify(contextSummary, null, 2)}
       })
     }
 
-    response.status(200).json(parsed)
+    sendJson(response, 200, parsed)
   } catch (err) {
     console.error('Error in Gemini generateContent:', err)
-    response.status(500).json({ error: 'AI generation failed: ' + err.message })
+    sendJson(response, 500, {
+      error: 'AI generation failed: ' + err.message,
+    })
   }
 }
-

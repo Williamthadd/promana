@@ -1,3 +1,5 @@
+import { sendJson } from '../server/apiResponse.js'
+
 function readRequestBody(request) {
   if (request.body && typeof request.body === 'object') {
     return Promise.resolve(request.body)
@@ -27,7 +29,7 @@ function readRequestBody(request) {
 
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
-    response.status(405).json({ error: 'Method not allowed' })
+    sendJson(response, 405, { error: 'Method not allowed' })
     return
   }
 

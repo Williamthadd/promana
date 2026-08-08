@@ -1,11 +1,13 @@
 /* global Buffer */
+import { sendJson } from '../server/apiResponse.js'
+
 export default async function handler(request, response) {
   const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`)
   const domain = url.searchParams.get('domain')
   const size = url.searchParams.get('size') || '128'
 
   if (!domain) {
-    response.status(400).json({ error: 'Domain is required' })
+    sendJson(response, 400, { error: 'Domain is required' })
     return
   }
 
