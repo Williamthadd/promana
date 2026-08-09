@@ -8,7 +8,6 @@ export default function NotesGrid({
   loading,
   searchQuery,
   filterType,
-  filterLanguage,
   filterTag,
   onDelete,
   onEdit,
@@ -19,7 +18,6 @@ export default function NotesGrid({
   const visibleNotes = useMemo(() => {
     const normalizedSearch = searchQuery.trim().toLowerCase()
     const normalizedType = filterType.trim().toLowerCase()
-    const normalizedLanguage = filterLanguage.trim().toLowerCase()
     const normalizedTag = filterTag.trim().toLowerCase()
 
     return notes.filter((note) => {
@@ -27,11 +25,6 @@ export default function NotesGrid({
         !normalizedType ||
         normalizedType === "all" ||
         (note.type ?? "").toLowerCase() === normalizedType
-
-      const matchesLanguage =
-        !normalizedLanguage ||
-        normalizedLanguage === "all" ||
-        (note.language ?? "").toLowerCase() === normalizedLanguage
 
       const matchesTag =
         !normalizedTag ||
@@ -43,12 +36,11 @@ export default function NotesGrid({
         note.title?.toLowerCase().includes(normalizedSearch) ||
         note.content?.toLowerCase().includes(normalizedSearch) ||
         note.type?.toLowerCase().includes(normalizedSearch) ||
-        note.language?.toLowerCase().includes(normalizedSearch) ||
         (note.tags ?? []).some((tag) => tag.toLowerCase().includes(normalizedSearch))
 
-      return matchesType && matchesLanguage && matchesTag && matchesSearch
+      return matchesType && matchesTag && matchesSearch
     })
-  }, [filterLanguage, filterTag, filterType, notes, searchQuery])
+  }, [filterTag, filterType, notes, searchQuery])
 
   const pinnedNotes = visibleNotes.filter((note) => note.isPinned)
   const regularNotes = visibleNotes.filter((note) => !note.isPinned)

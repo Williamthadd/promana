@@ -48,9 +48,7 @@ import {
   getLaunchpadCategoryOptions,
 } from '../constants/launchpadCategories'
 import {
-  NOTE_LANGUAGE_OPTIONS,
   NOTE_TYPE_OPTIONS,
-  getNoteLanguageLabel,
   getNoteTypeLabel,
 } from '../constants/noteOptions'
 import { DEFAULT_PROJECT_ENVIRONMENTS } from '../constants/projectEnvironments'
@@ -187,7 +185,6 @@ export default function DashboardPage() {
   const [launchpadFilterCategory, setLaunchpadFilterCategory] = useState('all')
   const [notesSearch, setNotesSearch] = useState('')
   const [notesFilterType, setNotesFilterType] = useState('all')
-  const [notesFilterLanguage, setNotesFilterLanguage] = useState('all')
   const [notesFilterTag, setNotesFilterTag] = useState('all')
   const [notesWorkspaceView, setNotesWorkspaceView] = useState('notes')
   const [documentUploadRequest, setDocumentUploadRequest] = useState(0)
@@ -239,6 +236,9 @@ export default function DashboardPage() {
   const usedProjectCount = projects.length
   const usedWebsiteCount = launchpadItems.length
   const usedNoteCount = notes.length
+  const usedNoteTypeCount = new Set(
+    notes.map((note) => note.type).filter(Boolean),
+  ).size
   const usedDocumentCount = documents.length
   const usedTaskGroupCount = taskGroups.length
   const totalTaskPointCount = taskGroups.reduce(
@@ -473,14 +473,6 @@ export default function DashboardPage() {
         new Set(projects.flatMap((project) => project.tags ?? []).filter(Boolean)),
       ).sort((left, right) => left.localeCompare(right)),
     [projects],
-  )
-
-  const availableNoteLanguages = useMemo(
-    () =>
-      Array.from(
-        new Set(notes.map((note) => note.language).filter(Boolean)),
-      ).sort((left, right) => left.localeCompare(right)),
-    [notes],
   )
 
   const availableNoteTags = useMemo(
@@ -743,7 +735,6 @@ export default function DashboardPage() {
     const payload = {
       title,
       type: noteDraft.type,
-      language: noteDraft.language,
       tags: noteDraft.tags ?? [],
       content: noteDraft.content.trimEnd(),
       isPinned: activeNote?.isPinned ?? false,
@@ -1299,10 +1290,10 @@ export default function DashboardPage() {
                       </div>
                       <div className="rounded-2xl border border-white/50 px-4 py-3 shadow-sm glass-panel-light dark:border-white/5 dark:glass-panel-dark">
                         <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
-                          Formats
+                          Types
                         </p>
                         <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
-                          {availableNoteLanguages.length}
+                          {usedNoteTypeCount}
                         </p>
                       </div>
                       <button
@@ -1840,7 +1831,7 @@ export default function DashboardPage() {
                 value={notesSearch}
                 onChange={(event) => setNotesSearch(event.target.value)}
                 inputRef={notesSearchInputRef}
-                placeholder="Search notes, snippets, or file types...."
+                placeholder="Search notes, snippets, or tags...."
               />
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -1855,24 +1846,6 @@ export default function DashboardPage() {
                   >
                     <option value="all">All note types</option>
                     {NOTE_TYPE_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="grid gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-                    Filter by language
-                  </span>
-                  <select
-                    value={notesFilterLanguage}
-                    onChange={(event) => setNotesFilterLanguage(event.target.value)}
-                    className="rounded-2xl border border-white/70 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-800 dark:bg-slate-900 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
-                  >
-                    <option value="all">All languages</option>
-                    {NOTE_LANGUAGE_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -1900,9 +1873,9 @@ export default function DashboardPage() {
               </div>
 
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                {availableNoteLanguages.length
-                  ? `Formats in use: ${availableNoteLanguages.map((language) => getNoteLanguageLabel(language)).join(', ')}${availableNoteTags.length ? ` · Tags: ${availableNoteTags.join(', ')}` : ''}`
-                  : 'Pick a language, file type, and tags for each note so the cards stay easy to scan.'}
+                {availableNoteTags.length
+                  ? `Tags in use: ${availableNoteTags.join(', ')}`
+                  : 'Choose a note type and add tags so your cards stay easy to scan.'}
               </p>
             </section>
 
@@ -1911,7 +1884,6 @@ export default function DashboardPage() {
               loading={notesLoading}
               searchQuery={notesSearch}
               filterType={notesFilterType}
-              filterLanguage={notesFilterLanguage}
               filterTag={notesFilterTag}
               onDelete={handleDeleteNote}
               onEdit={openNoteComposer}

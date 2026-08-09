@@ -1,17 +1,12 @@
 import { useState } from "react"
 import { createPortal } from "react-dom"
 import { LoaderCircle, Tags, X } from "lucide-react"
-import {
-  NOTE_TYPE_OPTIONS,
-  normalizeNoteLanguage,
-  normalizeNoteType,
-} from "../constants/noteOptions"
+import { NOTE_TYPE_OPTIONS, normalizeNoteType } from "../constants/noteOptions"
 
 function getDefaultDraft(note) {
   return {
     title: note?.title ?? "",
     type: normalizeNoteType(note?.type),
-    language: normalizeNoteLanguage(note?.language),
     tagsText: (note?.tags ?? []).join(", "),
     content: note?.content ?? "",
   }
@@ -28,21 +23,13 @@ function parseTags(value) {
   )
 }
 
-function getNotePlaceholder(type, language) {
-  if (type === "query" || language === "sql") {
+function getNotePlaceholder(type) {
+  if (type === "query") {
     return "SELECT id, email\nFROM users\nWHERE active = true\nORDER BY created_at DESC;"
   }
 
-  if (type === "config" || language === "yaml") {
+  if (type === "config") {
     return "app:\n  name: ProMana\n  environment: production"
-  }
-
-  if (language === "golang") {
-    return "func main() {\n    fmt.Println(\"hello from ProMana\")\n}"
-  }
-
-  if (language === "python") {
-    return "def greet(name):\n    return f\"Hello, {name}\""
   }
 
   return "Paste your snippet, text note, config block, or reference here..."
@@ -64,7 +51,6 @@ function NoteModalForm({ note, onClose, onSubmit, isSaving }) {
     void onSubmit?.({
       title: draft.title.trim(),
       type: normalizeNoteType(draft.type),
-      language: normalizeNoteLanguage(draft.language),
       tags: parseTags(draft.tagsText),
       content: draft.content,
     })
@@ -165,7 +151,7 @@ function NoteModalForm({ note, onClose, onSubmit, isSaving }) {
               <textarea
                 value={draft.content}
                 onChange={(event) => updateDraft("content", event.target.value)}
-                placeholder={getNotePlaceholder(draft.type, draft.language)}
+                placeholder={getNotePlaceholder(draft.type)}
                 rows={10}
                 className="min-h-[clamp(12rem,35vh,24rem)] w-full resize-y rounded-3xl border border-white/40 bg-white/80 px-4 py-4 font-mono text-sm leading-relaxed text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-white/10 dark:bg-slate-950/80 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-400/20"
               />

@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react"
-import { Bookmark, Copy, PencilLine, StickyNote, Trash2 } from "lucide-react"
+import { Bookmark, Copy, PencilLine, Trash2 } from "lucide-react"
 import ConfirmDialog from "./ConfirmDialog"
 import {
-  NOTE_CODE_PANEL_CLASSES,
   NOTE_TYPE_COLOR_CLASSES,
+  NOTE_TYPE_PANEL_CLASSES,
+  NOTE_TYPE_TEXT_COLOR_CLASSES,
   getNoteTypeLabel,
-  normalizeNoteLanguage,
   normalizeNoteType,
 } from "../constants/noteOptions"
 import { formatRelativeTime } from "../utils/formatters"
@@ -37,13 +37,14 @@ export default function NoteCard({
 }) {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const normalizedType = normalizeNoteType(note.type)
-  const normalizedLanguage = normalizeNoteLanguage(note.language)
   const typeClass =
     NOTE_TYPE_COLOR_CLASSES[normalizedType] ?? NOTE_TYPE_COLOR_CLASSES.text
   const panelClass =
-    NOTE_CODE_PANEL_CLASSES[normalizedLanguage] ??
-    NOTE_CODE_PANEL_CLASSES.plaintext
-  const isTextLike = normalizedType === "text" || normalizedLanguage === "markdown"
+    NOTE_TYPE_PANEL_CLASSES[normalizedType] ?? NOTE_TYPE_PANEL_CLASSES.text
+  const contentTextClass =
+    NOTE_TYPE_TEXT_COLOR_CLASSES[normalizedType] ??
+    NOTE_TYPE_TEXT_COLOR_CLASSES.text
+  const isTextLike = normalizedType === "text" || normalizedType === "reference"
   const lineCount = useMemo(
     () => String(note.content ?? "").split(/\r\n|\r|\n/).length,
     [note.content],
@@ -142,17 +143,12 @@ export default function NoteCard({
         )}
 
         <div
-          className={`relative flex-1 overflow-hidden rounded-3xl bg-gradient-to-br ${panelClass} p-4 text-slate-100`}
+          className={`relative flex-1 overflow-hidden rounded-3xl bg-gradient-to-br ${panelClass} p-4`}
         >
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent_35%)]" />
           <div className="relative">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-slate-300">
-              <StickyNote className="h-3.5 w-3.5" />
-              {normalizedLanguage}
-            </div>
-
             <pre
-              className={`max-h-72 overflow-auto whitespace-pre-wrap break-words ${
+              className={`max-h-72 overflow-auto whitespace-pre-wrap break-words ${contentTextClass} ${
                 isTextLike ? "font-sans text-sm leading-6" : "font-mono text-sm leading-6"
               }`}
             >
