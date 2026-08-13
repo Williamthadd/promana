@@ -62,7 +62,7 @@ function NoteModalForm({ note, onClose, onSubmit, isSaving }) {
       onClick={onClose}
     >
       <div
-        className="calendar-modal-panel relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/40 dark:border-white/10 glass-panel-light dark:glass-panel-dark p-5 shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:p-7"
+        className="calendar-modal-panel relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/40 dark:border-white/10 glass-panel-light dark:glass-panel-dark p-5 shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:p-7"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex shrink-0 items-start justify-between gap-4">
@@ -152,8 +152,8 @@ function NoteModalForm({ note, onClose, onSubmit, isSaving }) {
                 value={draft.content}
                 onChange={(event) => updateDraft("content", event.target.value)}
                 placeholder={getNotePlaceholder(draft.type)}
-                rows={10}
-                className="min-h-[clamp(12rem,35vh,24rem)] w-full resize-y rounded-3xl border border-white/40 bg-white/80 px-4 py-4 font-mono text-sm leading-relaxed text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-white/10 dark:bg-slate-950/80 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-400/20"
+                rows={16}
+                className="min-h-[clamp(18rem,50vh,34rem)] w-full resize-y rounded-3xl border border-white/40 bg-white/80 px-5 py-5 font-mono text-sm leading-relaxed text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-white/10 dark:bg-slate-950/80 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-400/20"
               />
             </label>
           </div>
