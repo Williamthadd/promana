@@ -6,6 +6,19 @@ export const NOTE_TYPE_OPTIONS = [
   { value: "reference", label: "Reference" },
 ]
 
+export const NOTE_VISIBILITY_OPTIONS = [
+  {
+    value: "visible",
+    label: "Visible by default",
+    description: "Show the note content whenever its card loads.",
+  },
+  {
+    value: "hidden",
+    label: "Hidden by default",
+    description: "Mask the content until you reveal it with the eye button.",
+  },
+]
+
 export const NOTE_TYPE_LABELS = Object.fromEntries(
   NOTE_TYPE_OPTIONS.map((option) => [option.value, option.label]),
 )
@@ -45,6 +58,10 @@ export function normalizeNoteType(value) {
     .toLowerCase()
 
   return NOTE_TYPE_LABELS[normalizedValue] ? normalizedValue : "text"
+}
+
+export function normalizeNoteVisibility(value) {
+  return value === "hidden" ? "hidden" : "visible"
 }
 
 export function getNoteTypeLabel(value) {

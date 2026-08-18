@@ -1,7 +1,12 @@
 import { useState } from "react"
 import { createPortal } from "react-dom"
-import { LoaderCircle, Tags, X } from "lucide-react"
-import { NOTE_TYPE_OPTIONS, normalizeNoteType } from "../constants/noteOptions"
+import { Eye, EyeOff, LoaderCircle, Tags, X } from "lucide-react"
+import {
+  NOTE_TYPE_OPTIONS,
+  NOTE_VISIBILITY_OPTIONS,
+  normalizeNoteType,
+  normalizeNoteVisibility,
+} from "../constants/noteOptions"
 
 function getDefaultDraft(note) {
   return {
@@ -9,6 +14,7 @@ function getDefaultDraft(note) {
     type: normalizeNoteType(note?.type),
     tagsText: (note?.tags ?? []).join(", "),
     content: note?.content ?? "",
+    visibility: normalizeNoteVisibility(note?.visibility),
   }
 }
 
@@ -53,6 +59,7 @@ function NoteModalForm({ note, onClose, onSubmit, isSaving }) {
       type: normalizeNoteType(draft.type),
       tags: parseTags(draft.tagsText),
       content: draft.content,
+      visibility: normalizeNoteVisibility(draft.visibility),
     })
   }
 
@@ -143,6 +150,51 @@ function NoteModalForm({ note, onClose, onSubmit, isSaving }) {
                 </p>
               </label>
             </div>
+
+            <fieldset className="grid gap-2">
+              <legend className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                Default visibility
+              </legend>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {NOTE_VISIBILITY_OPTIONS.map((option) => {
+                  const isSelected = draft.visibility === option.value
+                  const VisibilityIcon = option.value === "hidden" ? EyeOff : Eye
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => updateDraft("visibility", option.value)}
+                      className={`flex items-start gap-3 rounded-2xl border px-4 py-3 text-left transition ${
+                        isSelected
+                          ? "border-blue-500 bg-blue-50 text-blue-950 ring-4 ring-blue-500/10 dark:border-blue-400 dark:bg-blue-500/10 dark:text-blue-100"
+                          : "border-white/40 bg-white/70 text-slate-700 hover:border-blue-200 hover:bg-white dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-200 dark:hover:border-blue-500/30"
+                      }`}
+                      aria-pressed={isSelected}
+                    >
+                      <span
+                        className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                          isSelected
+                            ? "bg-blue-600 text-white"
+                            : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300"
+                        }`}
+                      >
+                        <VisibilityIcon className="h-4 w-4" />
+                      </span>
+                      <span>
+                        <span className="block text-sm font-bold">{option.label}</span>
+                        <span className="mt-1 block text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                          {option.description}
+                        </span>
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                Visibility only masks this card's content; it does not change account access.
+              </p>
+            </fieldset>
 
             <label className="grid gap-2 pb-1">
               <span className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">

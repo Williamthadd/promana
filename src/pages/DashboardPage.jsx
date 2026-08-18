@@ -50,6 +50,7 @@ import {
 import {
   NOTE_TYPE_OPTIONS,
   getNoteTypeLabel,
+  normalizeNoteVisibility,
 } from '../constants/noteOptions'
 import { DEFAULT_PROJECT_ENVIRONMENTS } from '../constants/projectEnvironments'
 import { TASK_STATUS_OPTIONS } from '../constants/taskStatuses'
@@ -737,6 +738,7 @@ export default function DashboardPage() {
       type: noteDraft.type,
       tags: noteDraft.tags ?? [],
       content: noteDraft.content.trimEnd(),
+      visibility: normalizeNoteVisibility(noteDraft.visibility),
       isPinned: activeNote?.isPinned ?? false,
       lastUpdatedAt: timestamp,
     }
