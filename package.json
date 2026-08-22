@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "npm run security:dependencies",
     "build": "vite build",
     "lint": "eslint .",
+    "security:dependencies": "node scripts/check-dependency-denylist.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
