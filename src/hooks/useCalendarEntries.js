@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { collection, onSnapshot } from 'firebase/firestore'
 import { db } from '../firebase'
+import {
+  removeFirestoreSnapshot,
+  reportFirestoreSnapshot,
+} from '../features/offline-mode/firestoreSyncStore'
 import { sortCalendarEntries } from '../utils/calendar'
 
 function normalizeIdList(value) {
@@ -44,9 +48,14 @@ export default function useCalendarEntries(uid) {
       return undefined
     }
 
+    const snapshotKey = `calendar-entries:${uid}`
     const unsubscribe = onSnapshot(
       collection(db, 'users', uid, 'calendarEntries'),
+      { includeMetadataChanges: true },
       (snapshot) => {
+        reportFirestoreSnapshot(snapshotKey, snapshot.metadata, {
+          size: snapshot.size,
+        })
         setState({
           uid,
           entries: sortCalendarEntries(
@@ -57,11 +66,19 @@ export default function useCalendarEntries(uid) {
         })
       },
       (nextError) => {
-        setState({ uid, entries: [], loading: false, error: nextError })
+        setState((currentState) => ({
+          uid,
+          entries: currentState.uid === uid ? currentState.entries : [],
+          loading: false,
+          error: nextError,
+        }))
       },
     )
 
-    return unsubscribe
+    return () => {
+      unsubscribe()
+      removeFirestoreSnapshot(snapshotKey)
+    }
   }, [uid])
 
   if (!uid) {

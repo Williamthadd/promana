@@ -9,6 +9,7 @@ import {
 } from '../constants/launchpadCategories'
 import { SUGGESTED_PLATFORMS } from '../constants/launchpadSuggestions'
 import { auth, db } from '../firebase'
+import { queueFirestoreWrite } from '../features/offline-mode/firestoreSyncStore'
 import LaunchpadFavicon from './LaunchpadFavicon'
 import { isValidUrl } from '../utils/faviconUtils'
 
@@ -106,18 +107,27 @@ function AddLaunchpadModalForm({
     setIsSaving(true)
 
     try {
-      await addDoc(collection(db, 'users', uid, 'launchpad'), {
-        name,
-        url,
-        category,
-        notes: formState.notes.trim(),
-        isPinned: false,
-        lastVisitedAt: null,
-        order: 0,
-        createdAt: Timestamp.now(),
-      })
+      const writeResult = await queueFirestoreWrite(
+        () =>
+          addDoc(collection(db, 'users', uid, 'launchpad'), {
+            name,
+            url,
+            category,
+            notes: formState.notes.trim(),
+            isPinned: false,
+            lastVisitedAt: null,
+            order: 0,
+            createdAt: Timestamp.now(),
+          }),
+        `add ${name} launchpad shortcut`,
+      )
 
-      addToast(`${name} added to Launchpad`, 'success')
+      addToast(
+        writeResult.queued
+          ? `${name} was added locally and will sync when ProMana is online.`
+          : `${name} added to Launchpad`,
+        'success',
+      )
       handleClose()
     } catch {
       addToast('Unable to add that shortcut right now.', 'error')

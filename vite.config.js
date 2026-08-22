@@ -5,6 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
 import fs from 'fs'
+import { pwaAppShellPlugin } from './scripts/pwa-app-shell-plugin.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -82,7 +83,7 @@ function devApiPlugin() {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), devApiPlugin()],
+  plugins: [react(), tailwindcss(), devApiPlugin(), pwaAppShellPlugin()],
   resolve: {
     alias: !hasFirebaseEnv ? {
       'firebase/app': path.resolve(__dirname, './src/mockFirebase.js'),

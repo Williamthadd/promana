@@ -3,11 +3,13 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import { inject } from '@vercel/analytics'
+import { registerServiceWorker } from './pwa/registerServiceWorker.js'
 
 const preferredTheme = window.localStorage.getItem('proman-theme')
 document.documentElement.classList.toggle('dark', preferredTheme === 'dark')
 
 inject()
+registerServiceWorker()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

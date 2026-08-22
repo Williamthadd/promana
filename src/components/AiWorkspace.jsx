@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Sparkles,
   Send,
@@ -12,6 +12,7 @@ import {
   Trash2,
   Copy,
   Check,
+  WifiOff,
 } from 'lucide-react'
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'motion/react'
@@ -23,6 +24,25 @@ import useAiDailyUsage from '../hooks/useAiDailyUsage'
 
 // Daily credits limit definition
 const DAILY_LIMIT = 15
+const LEGACY_CHAT_HISTORY_KEY = 'proman-ai-chat-history'
+
+function getChatHistoryStorageKey(userId) {
+  return userId ? `${LEGACY_CHAT_HISTORY_KEY}:${userId}` : null
+}
+
+function readChatHistory(storageKey) {
+  if (!storageKey) {
+    return []
+  }
+
+  try {
+    const saved = localStorage.getItem(storageKey)
+    const parsed = saved ? JSON.parse(saved) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
 
 // Code block copy button sub-component to handle state locally
 function CodeBlockHeader({ language, code, addToast }) {
@@ -85,13 +105,45 @@ export default function AiWorkspace({
   onUpdateLaunchpadItem,
   onToggleLaunchpadPin,
   addToast,
+  cloudAvailable = true,
 }) {
   const [prompt, setPrompt] = useState('')
   const [loading, setLoading] = useState(false)
-  const [messages, setMessages] = useState(() => {
-    const saved = localStorage.getItem('proman-ai-chat-history')
-    return saved ? JSON.parse(saved) : []
-  })
+  const chatStorageKey = getChatHistoryStorageKey(userId)
+  const [messagesByStorageKey, setMessagesByStorageKey] = useState(() =>
+    chatStorageKey
+      ? { [chatStorageKey]: readChatHistory(chatStorageKey) }
+      : {},
+  )
+  const messages = useMemo(
+    () =>
+      chatStorageKey
+        ? messagesByStorageKey[chatStorageKey] ??
+          readChatHistory(chatStorageKey)
+        : [],
+    [chatStorageKey, messagesByStorageKey],
+  )
+  const setMessages = (updater) => {
+    if (!chatStorageKey) {
+      return
+    }
+
+    setMessagesByStorageKey((currentByKey) => {
+      const currentMessages = Object.prototype.hasOwnProperty.call(
+        currentByKey,
+        chatStorageKey,
+      )
+        ? currentByKey[chatStorageKey]
+        : readChatHistory(chatStorageKey)
+      const nextMessages =
+        typeof updater === 'function' ? updater(currentMessages) : updater
+
+      return {
+        ...currentByKey,
+        [chatStorageKey]: nextMessages,
+      }
+    })
+  }
   const {
     creditsUsed,
     loading: usageLoading,
@@ -101,12 +153,15 @@ export default function AiWorkspace({
   const isRestoring = creditsUsed >= DAILY_LIMIT
   const remainingCredits = Math.max(0, DAILY_LIMIT - creditsUsed)
   const usageUnavailable = usageLoading || Boolean(usageError)
-  const aiInteractionDisabled = loading || usageUnavailable || isRestoring
+  const aiInteractionDisabled =
+    !cloudAvailable || loading || usageUnavailable || isRestoring
   const chatEndRef = useRef(null)
 
-  // Remove the legacy browser counter now that Firestore owns daily usage.
+  // Remove unscoped legacy values so one account cannot see another account's
+  // locally stored chat after users switch in the same browser profile.
   useEffect(() => {
     localStorage.removeItem('proman-ai-credits')
+    localStorage.removeItem(LEGACY_CHAT_HISTORY_KEY)
   }, [])
 
   // Auto-scroll chat history
@@ -116,13 +171,24 @@ export default function AiWorkspace({
 
   // Save chat history
   useEffect(() => {
-    localStorage.setItem('proman-ai-chat-history', JSON.stringify(messages))
-  }, [messages])
+    if (!chatStorageKey) {
+      return
+    }
+
+    try {
+      localStorage.setItem(chatStorageKey, JSON.stringify(messages))
+    } catch {
+      // Chat history is a convenience cache; storage quota/privacy settings
+      // must not interrupt the AI workspace.
+    }
+  }, [chatStorageKey, messages])
 
   // Clear chat history
   const clearChat = () => {
     setMessages([])
-    localStorage.removeItem('proman-ai-chat-history')
+    if (chatStorageKey) {
+      localStorage.removeItem(chatStorageKey)
+    }
     addToast('Chat history cleared successfully.', 'info')
   }
 
@@ -151,6 +217,14 @@ export default function AiWorkspace({
     if (e) e.preventDefault()
     const activePrompt = customPrompt || prompt
     if (!activePrompt.trim()) return
+
+    if (!cloudAvailable) {
+      addToast(
+        'Ask AI needs an internet connection. Your cached workspace is still available offline.',
+        'info',
+      )
+      return
+    }
 
     // Client-side length limit
     if (activePrompt.length > 1000) {
@@ -240,6 +314,11 @@ export default function AiWorkspace({
       }
       setMessages(prev => [...prev, aiMessage])
     } catch (err) {
+      if (err?.code === 'ai/offline') {
+        addToast(err.message, 'info')
+        return
+      }
+
       if (err?.code === 'ai/daily-limit') {
         addToast(
           'Daily free AI limits reached. Please wait for credit restoration.',
@@ -387,7 +466,18 @@ export default function AiWorkspace({
               />
             </div>
 
-            {usageError ? (
+            {!cloudAvailable ? (
+              <div
+                className="mt-4 flex gap-2 rounded-2xl bg-amber-50 p-4 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-200"
+                role="status"
+              >
+                <WifiOff className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>
+                  <strong>AI is paused offline.</strong> Cached workspace data
+                  remains available. Reconnect before sending a Gemini request.
+                </span>
+              </div>
+            ) : usageError ? (
               <div className="mt-4 flex gap-2 rounded-2xl bg-rose-50 p-4 text-xs text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
                 <Clock className="h-4 w-4 shrink-0 mt-0.5" />
                 <span>
@@ -430,12 +520,24 @@ export default function AiWorkspace({
       <main className="flex-1 flex flex-col rounded-3xl border border-white/50 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-md shadow-xl overflow-hidden">
         {/* Chat History Header */}
         <header className="flex items-center justify-between border-b border-slate-100 dark:border-white/5 px-6 py-4">
-          <div className="flex items-center gap-2">
+          <div
+            className="flex items-center gap-2"
+            role="status"
+            aria-live="polite"
+          >
             <span className="relative flex h-2.5 w-2.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+              {cloudAvailable ? (
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              ) : null}
+              <span
+                className={`relative inline-flex h-2.5 w-2.5 rounded-full ${
+                  cloudAvailable ? 'bg-emerald-500' : 'bg-amber-500'
+                }`}
+              />
             </span>
-            <span className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">AI Interactive Shell</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+              {cloudAvailable ? 'AI Interactive Shell' : 'AI Offline'}
+            </span>
           </div>
         </header>
 
@@ -472,6 +574,9 @@ export default function AiWorkspace({
                       whileTap={aiInteractionDisabled ? undefined : { scale: 0.98 }}
                       onClick={() => handleSubmit(null, s.prompt)}
                       disabled={aiInteractionDisabled}
+                      aria-describedby={
+                        cloudAvailable ? undefined : 'ai-offline-help'
+                      }
                       className="flex flex-col text-left p-5 rounded-2xl border border-slate-200/50 dark:border-white/5 bg-white/50 dark:bg-slate-950/20 hover:border-blue-500/30 dark:hover:border-blue-400/30 hover:bg-blue-50/10 dark:hover:bg-blue-500/5 transition duration-300 shadow-sm cursor-pointer group disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <span className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 group-hover:text-blue-500">
@@ -677,8 +782,13 @@ export default function AiWorkspace({
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               disabled={aiInteractionDisabled}
+              aria-describedby={
+                cloudAvailable ? undefined : 'ai-offline-help'
+              }
               placeholder={
-                usageLoading
+                !cloudAvailable
+                  ? "Ask AI is unavailable offline"
+                  : usageLoading
                   ? "Syncing daily AI usage..."
                   : usageError
                     ? "AI usage is temporarily unavailable"
@@ -691,11 +801,22 @@ export default function AiWorkspace({
             <button
               type="submit"
               disabled={aiInteractionDisabled || !prompt.trim()}
+              aria-label="Send message to ProMana Assistant"
               className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white transition duration-200 hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 cursor-pointer shadow-md shadow-blue-500/10 hover:scale-[1.03]"
             >
               <Send className="h-4 w-4" />
             </button>
           </div>
+          {!cloudAvailable ? (
+            <p
+              id="ai-offline-help"
+              className="mx-auto mt-3 max-w-4xl text-xs text-amber-700 dark:text-amber-300"
+              role="status"
+            >
+              Offline mode: you can still review cached workspace data and chat
+              history, but Ask AI requires an internet connection.
+            </p>
+          ) : null}
         </form>
       </main>
     </div>

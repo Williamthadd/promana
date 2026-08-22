@@ -4,6 +4,7 @@ import { signOut } from 'firebase/auth'
 import { Link, useNavigate } from 'react-router-dom'
 import { auth } from '../firebase'
 import { clearCachedOfflineImages } from '../features/offline-transfer/offlineImageCache'
+import { resetFirestoreSyncStatus } from '../features/offline-mode/firestoreSyncStore'
 import { toBackgroundRgba } from '../utils/lightBackground'
 import { clearGoogleDriveAccessToken } from '../utils/googleDriveAuth'
 import BackgroundColorControl from './BackgroundColorControl'
@@ -55,6 +56,7 @@ export default function Header({
           )
         })
       }
+      resetFirestoreSyncStatus()
       await signOut(auth)
       setIsOpen(false)
       navigate('/login', { replace: true })

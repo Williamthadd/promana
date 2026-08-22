@@ -19,6 +19,7 @@ import ConfirmDialog from './ConfirmDialog'
 
 export default function DocumentCard({
   document,
+  cloudAvailable = true,
   onPreview,
   onCopyImage,
   onOfflineTransfer,
@@ -89,8 +90,14 @@ export default function DocumentCard({
           >
             <button
               type="button"
+              disabled={!cloudAvailable}
               onClick={() => onPreview(document)}
-              className="inline-flex min-w-0 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700"
+              title={
+                cloudAvailable
+                  ? 'Preview from Google Drive'
+                  : 'Google Drive preview is unavailable while offline'
+              }
+              className="inline-flex min-w-0 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Eye className="h-4 w-4 shrink-0" />
               Preview
@@ -98,9 +105,13 @@ export default function DocumentCard({
             {document.kind === 'image' ? (
               <button
                 type="button"
-                disabled={isCopying}
+                disabled={isCopying || !cloudAvailable}
                 onClick={() => void onCopyImage(document)}
-                title="Copy image to clipboard"
+                title={
+                  cloudAvailable
+                    ? 'Copy image to clipboard'
+                    : 'Copying from Google Drive is unavailable while offline'
+                }
                 className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 text-slate-500 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-600 disabled:cursor-wait disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:border-emerald-500/30 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
                 aria-label={`Copy ${document.originalName} to clipboard`}
               >
@@ -135,7 +146,7 @@ export default function DocumentCard({
                 </button>
               </span>
             ) : null}
-            {document.downloadUrl ? (
+            {document.downloadUrl && cloudAvailable ? (
               <a
                 href={document.downloadUrl}
                 target="_blank"
@@ -146,11 +157,26 @@ export default function DocumentCard({
               >
                 <Download className="h-4 w-4" />
               </a>
+            ) : document.downloadUrl ? (
+              <button
+                type="button"
+                disabled
+                title="Google Drive downloads are unavailable while offline"
+                className="inline-flex h-11 w-11 cursor-not-allowed items-center justify-center rounded-2xl border border-slate-200 text-slate-400 opacity-50 dark:border-slate-700 dark:text-slate-500"
+                aria-label={`Download ${document.originalName} unavailable while offline`}
+              >
+                <Download className="h-4 w-4" />
+              </button>
             ) : null}
             <button
               type="button"
-              disabled={isDeleting}
+              disabled={isDeleting || !cloudAvailable}
               onClick={() => setIsConfirmOpen(true)}
+              title={
+                cloudAvailable
+                  ? 'Remove file'
+                  : 'Deleting from Google Drive is unavailable while offline'
+              }
               className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:border-red-500/30 dark:hover:bg-red-500/10"
               aria-label={`Remove ${document.title || document.originalName}`}
             >

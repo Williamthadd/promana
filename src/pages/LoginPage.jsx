@@ -6,13 +6,14 @@ import {
   signInWithPopup,
 } from 'firebase/auth'
 import { addDoc, collection, Timestamp } from 'firebase/firestore'
-import { LoaderCircle } from 'lucide-react'
+import { LoaderCircle, WifiOff } from 'lucide-react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import BackgroundColorControl from '../components/BackgroundColorControl'
 import BrandMark from '../components/BrandMark'
 import MadeByFooter from '../components/MadeByFooter'
 import { auth, db } from '../firebase'
 import useAuth from '../hooks/useAuth'
+import useConnectivity from '../features/offline-mode/useConnectivity'
 import useLightBackgroundColor from '../hooks/useLightBackgroundColor'
 import reportAuthFailure from '../utils/authFailureReporter'
 import {
@@ -107,6 +108,7 @@ export default function LoginPage() {
   )
   const navigate = useNavigate()
   const { user, loading: authLoading } = useAuth()
+  const { isOffline } = useConnectivity()
   const {
     lightBackgroundColor,
     setLightBackgroundColor,
@@ -140,8 +142,42 @@ export default function LoginPage() {
     }
   }
 
+  async function recordAuthAttempt({ uid, method, success, error }) {
+    const ipAddress = await fetchIpAddress()
+    const reports = [
+      writeLoginLog({ uid, method, success, ipAddress }),
+    ]
+
+    if (!success) {
+      reports.push(
+        reportAuthFailure({
+          method,
+          authMode,
+          code: error?.code ?? null,
+          message: error?.message ?? null,
+          ipAddress,
+          emailProvided: method === 'google' ? false : Boolean(email.trim()),
+        }),
+      )
+    }
+
+    await Promise.allSettled(reports)
+  }
+
+  function showOfflineAuthMessage() {
+    setErrorMessage(
+      'You are offline. A new sign-in or account registration needs an internet connection. Previously cached workspace data opens automatically only while your existing Firebase session is still signed in on this device.',
+    )
+  }
+
   async function handleEmailSubmit(event) {
     event.preventDefault()
+
+    if (isOffline) {
+      showOfflineAuthMessage()
+      return
+    }
+
     setLoading(true)
     setErrorMessage('')
 
@@ -153,41 +189,35 @@ export default function LoginPage() {
           ? await signInWithEmailAndPassword(auth, email, password)
           : await createUserWithEmailAndPassword(auth, email, password)
 
-      const ipAddress = await fetchIpAddress()
-
-      await writeLoginLog({
+      // Authentication is the primary action. IP lookup and audit logging are
+      // best-effort and must never delay entry to a successfully opened app.
+      void recordAuthAttempt({
         uid: credentials.user.uid,
         method,
         success: true,
-        ipAddress,
       })
 
       navigate('/dashboard', { replace: true })
     } catch (error) {
-      const ipAddress = await fetchIpAddress()
+      setErrorMessage(getAuthErrorMessage(error))
 
-      await writeLoginLog({
+      void recordAuthAttempt({
         uid: auth.currentUser?.uid ?? null,
         method,
         success: false,
-        ipAddress,
+        error,
       })
-      await reportAuthFailure({
-        method,
-        authMode,
-        code: error?.code ?? null,
-        message: error?.message ?? null,
-        ipAddress,
-        emailProvided: Boolean(email.trim()),
-      })
-
-      setErrorMessage(getAuthErrorMessage(error))
     } finally {
       setLoading(false)
     }
   }
 
   async function handleGoogleLogin() {
+    if (isOffline) {
+      showOfflineAuthMessage()
+      return
+    }
+
     setLoading(true)
     setErrorMessage('')
     googleProvider.setCustomParameters({ prompt: 'select_account' })
@@ -200,35 +230,22 @@ export default function LoginPage() {
         credentials.user.uid,
         googleCredential?.accessToken,
       )
-      const ipAddress = await fetchIpAddress()
-
-      await writeLoginLog({
+      void recordAuthAttempt({
         uid: credentials.user.uid,
         method: 'google',
         success: true,
-        ipAddress,
       })
 
       navigate('/dashboard', { replace: true })
     } catch (error) {
-      const ipAddress = await fetchIpAddress()
+      setErrorMessage(getAuthErrorMessage(error))
 
-      await writeLoginLog({
+      void recordAuthAttempt({
         uid: auth.currentUser?.uid ?? null,
         method: 'google',
         success: false,
-        ipAddress,
+        error,
       })
-      await reportAuthFailure({
-        method: 'google',
-        authMode,
-        code: error?.code ?? null,
-        message: error?.message ?? null,
-        ipAddress,
-        emailProvided: false,
-      })
-
-      setErrorMessage(getAuthErrorMessage(error))
     } finally {
       setLoading(false)
     }
@@ -291,6 +308,20 @@ export default function LoginPage() {
           </div>
 
           <form className="grid gap-5" onSubmit={handleEmailSubmit}>
+            {isOffline ? (
+              <div
+                className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+                role="status"
+                aria-live="polite"
+              >
+                <WifiOff className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  Offline mode cannot start a new sign-in. Reconnect to Firebase,
+                  then try again.
+                </span>
+              </div>
+            ) : null}
+
             <div className="grid gap-1.5">
               <label className="text-xs font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400 px-1">
                 Email Address
@@ -333,7 +364,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || isOffline}
               className="relative overflow-hidden inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3.5 font-bold text-white transition-all hover:brightness-110 active:scale-[0.98] shadow-md hover:shadow-blue-500/20 disabled:cursor-not-allowed disabled:opacity-80 text-sm cursor-pointer"
             >
               {loading ? (
@@ -353,7 +384,7 @@ export default function LoginPage() {
 
           <button
             type="button"
-            disabled={loading}
+            disabled={loading || isOffline}
             onClick={handleGoogleLogin}
             className="inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-200/80 bg-white/40 px-4 py-3.5 font-semibold text-slate-700 transition-all hover:bg-white/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-80 dark:border-slate-800 dark:text-slate-200 dark:bg-slate-900/40 dark:hover:bg-slate-900/80 text-sm cursor-pointer shadow-sm"
           >

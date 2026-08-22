@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { collection, onSnapshot } from 'firebase/firestore'
 import { db } from '../firebase'
+import {
+  removeFirestoreSnapshot,
+  reportFirestoreSnapshot,
+} from '../features/offline-mode/firestoreSyncStore'
 import { getTimeValue } from '../utils/formatters'
 
 function sortDocuments(documents) {
@@ -23,9 +27,14 @@ export default function useDocuments(uid) {
       return undefined
     }
 
-    return onSnapshot(
+    const snapshotKey = `documents:${uid}`
+    const unsubscribe = onSnapshot(
       collection(db, 'users', uid, 'documents'),
+      { includeMetadataChanges: true },
       (snapshot) => {
+        reportFirestoreSnapshot(snapshotKey, snapshot.metadata, {
+          size: snapshot.size,
+        })
         setState({
           uid,
           documents: sortDocuments(
@@ -39,14 +48,20 @@ export default function useDocuments(uid) {
         })
       },
       (error) => {
-        setState({
+        setState((currentState) => ({
           uid,
-          documents: [],
+          documents:
+            currentState.uid === uid ? currentState.documents : [],
           loading: false,
           error,
-        })
+        }))
       },
     )
+
+    return () => {
+      unsubscribe()
+      removeFirestoreSnapshot(snapshotKey)
+    }
   }, [uid])
 
   if (!uid) {

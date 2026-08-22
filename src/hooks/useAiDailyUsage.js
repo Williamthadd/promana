@@ -6,6 +6,14 @@ import {
   serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '../firebase'
+import {
+  removeFirestoreSnapshot,
+  reportFirestoreSnapshot,
+} from '../features/offline-mode/firestoreSyncStore'
+import {
+  CONNECTIVITY_STATUS,
+  getConnectivitySnapshot,
+} from '../features/offline-mode/useConnectivity'
 
 const AI_USAGE_DOCUMENT_ID = 'aiDaily'
 
@@ -26,6 +34,14 @@ function normalizeCount(value) {
 function createDailyLimitError() {
   const error = new Error('Daily AI limit reached.')
   error.code = 'ai/daily-limit'
+  return error
+}
+
+function createOfflineError() {
+  const error = new Error(
+    'Ask AI needs an internet connection. Your cached workspace is still available offline.',
+  )
+  error.code = 'ai/offline'
   return error
 }
 
@@ -64,9 +80,14 @@ export default function useAiDailyUsage(uid, dailyLimit) {
       AI_USAGE_DOCUMENT_ID,
     )
 
+    const snapshotKey = `ai-usage:${uid}`
     const unsubscribe = onSnapshot(
       usageReference,
+      { includeMetadataChanges: true },
       (snapshot) => {
+        reportFirestoreSnapshot(snapshotKey, snapshot.metadata, {
+          size: snapshot.exists() ? 1 : 0,
+        })
         const usage = snapshot.data()
         const creditsUsed =
           usage?.dateKey === dateKey ? normalizeCount(usage.count) : 0
@@ -80,17 +101,21 @@ export default function useAiDailyUsage(uid, dailyLimit) {
         })
       },
       (error) => {
-        setState({
+        setState((currentState) => ({
           uid,
           dateKey,
-          creditsUsed: 0,
+          creditsUsed:
+            currentState.uid === uid ? currentState.creditsUsed : 0,
           loading: false,
           error,
-        })
+        }))
       },
     )
 
-    return unsubscribe
+    return () => {
+      unsubscribe()
+      removeFirestoreSnapshot(snapshotKey)
+    }
   }, [dateKey, uid])
 
   async function consumeCredit() {
@@ -98,6 +123,15 @@ export default function useAiDailyUsage(uid, dailyLimit) {
       const error = new Error('Authentication is required to use AI.')
       error.code = 'ai/auth-required'
       throw error
+    }
+
+    // Firestore transactions cannot run offline. Checking the shared,
+    // same-origin connectivity state here prevents callers from accidentally
+    // starting a transaction that would otherwise fail or wait on the network.
+    if (
+      getConnectivitySnapshot().status !== CONNECTIVITY_STATUS.ONLINE
+    ) {
+      throw createOfflineError()
     }
 
     const activeDateKey = getAiUsageDateKey()

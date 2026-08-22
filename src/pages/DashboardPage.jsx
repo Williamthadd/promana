@@ -42,6 +42,13 @@ import TaskGroupCard from '../components/TaskGroupCard'
 import TaskGroupModal from '../components/TaskGroupModal'
 import TaskGroupSkeletonCard from '../components/TaskGroupSkeletonCard'
 import ToastContainer from '../components/ToastContainer'
+import OfflineStatusBanner from '../features/offline-mode/OfflineStatusBanner'
+import {
+  queueFirestoreWrite,
+  resetFirestoreSyncStatus,
+  useFirestoreSyncStatus,
+} from '../features/offline-mode/firestoreSyncStore'
+import useConnectivity from '../features/offline-mode/useConnectivity'
 import { LANGUAGE_COLORS } from '../constants/languageColors'
 import {
   getLaunchpadCategoryLabel,
@@ -141,6 +148,9 @@ function getInitialDesignMode() {
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth()
+  const connectivity = useConnectivity()
+  const firestoreSync = useFirestoreSyncStatus()
+  const syncUserIdRef = useRef(undefined)
   const {
     lightBackgroundColor,
     setLightBackgroundColor,
@@ -199,6 +209,15 @@ export default function DashboardPage() {
     () => window.localStorage.getItem('proman-theme') === 'dark',
   )
   const [isManualImportOpen, setIsManualImportOpen] = useState(false)
+
+  useEffect(() => {
+    const nextUserId = user?.uid ?? null
+
+    if (syncUserIdRef.current !== nextUserId) {
+      resetFirestoreSyncStatus()
+      syncUserIdRef.current = nextUserId
+    }
+  }, [user?.uid])
 
   const [isAddLaunchpadOpen, setIsAddLaunchpadOpen] = useState(false)
   const [isEditorManagerOpen, setIsEditorManagerOpen] = useState(false)
@@ -632,6 +651,15 @@ export default function DashboardPage() {
     setIsNoteModalOpen(true)
   }
 
+  function showWriteSuccess(message, result) {
+    addToast(
+      result?.queued
+        ? `${message} Saved on this device and waiting to sync.`
+        : message,
+      'success',
+    )
+  }
+
 
 
   async function handleDeleteProject(project) {
@@ -641,8 +669,11 @@ export default function DashboardPage() {
     }
 
     try {
-      await deleteDoc(doc(db, 'users', user.uid, 'projects', project.id))
-      addToast(`Removed ${project.displayName}.`, 'success')
+      const result = await queueFirestoreWrite(
+        () => deleteDoc(doc(db, 'users', user.uid, 'projects', project.id)),
+        'Project removal',
+      )
+      showWriteSuccess(`Removed ${project.displayName}.`, result)
     } catch {
       addToast('Unable to remove that project right now.', 'error')
     }
@@ -657,8 +688,11 @@ export default function DashboardPage() {
     }
 
     try {
-      await deleteDoc(doc(db, 'users', uid, 'launchpad', item.id))
-      addToast('Shortcut removed.', 'success')
+      const result = await queueFirestoreWrite(
+        () => deleteDoc(doc(db, 'users', uid, 'launchpad', item.id)),
+        'Shortcut removal',
+      )
+      showWriteSuccess('Shortcut removed.', result)
       return true
     } catch {
       addToast('Unable to remove that shortcut.', 'error')
@@ -675,7 +709,10 @@ export default function DashboardPage() {
     }
 
     try {
-      await updateDoc(doc(db, 'users', uid, 'launchpad', item.id), patch)
+      await queueFirestoreWrite(
+        () => updateDoc(doc(db, 'users', uid, 'launchpad', item.id), patch),
+        'Shortcut update',
+      )
       return true
     } catch {
       addToast('Unable to update that shortcut.', 'error')
@@ -699,8 +736,8 @@ export default function DashboardPage() {
     setIsSavingCustomEditors(true)
 
     try {
-      await saveCustomEditors(nextEditors)
-      addToast('Project IDEs updated.', 'success')
+      const result = await saveCustomEditors(nextEditors)
+      showWriteSuccess('Project IDEs updated.', result)
       return true
     } catch (error) {
       addToast(error?.message || 'Unable to save custom IDEs right now.', 'error')
@@ -745,14 +782,25 @@ export default function DashboardPage() {
 
     try {
       if (activeNote?.id) {
-        await updateDoc(doc(db, 'users', user.uid, 'notes', activeNote.id), payload)
-        addToast('Note updated.', 'success')
+        const result = await queueFirestoreWrite(
+          () =>
+            updateDoc(
+              doc(db, 'users', user.uid, 'notes', activeNote.id),
+              payload,
+            ),
+          'Note update',
+        )
+        showWriteSuccess('Note updated.', result)
       } else {
-        await addDoc(collection(db, 'users', user.uid, 'notes'), {
-          ...payload,
-          createdAt: timestamp,
-        })
-        addToast(`${title} saved to Notes.`, 'success')
+        const result = await queueFirestoreWrite(
+          () =>
+            addDoc(collection(db, 'users', user.uid, 'notes'), {
+              ...payload,
+              createdAt: timestamp,
+            }),
+          'New note',
+        )
+        showWriteSuccess(`${title} saved to Notes.`, result)
       }
 
       setIsNoteModalOpen(false)
@@ -771,8 +819,11 @@ export default function DashboardPage() {
     }
 
     try {
-      await deleteDoc(doc(db, 'users', user.uid, 'notes', note.id))
-      addToast('Note removed.', 'success')
+      const result = await queueFirestoreWrite(
+        () => deleteDoc(doc(db, 'users', user.uid, 'notes', note.id)),
+        'Note removal',
+      )
+      showWriteSuccess('Note removed.', result)
     } catch {
       addToast('Unable to remove that note right now.', 'error')
     }
@@ -785,11 +836,18 @@ export default function DashboardPage() {
     }
 
     try {
-      await updateDoc(doc(db, 'users', user.uid, 'notes', note.id), {
-        isPinned: !note.isPinned,
-        lastUpdatedAt: Timestamp.now(),
-      })
-      addToast(note.isPinned ? 'Note unpinned.' : 'Note pinned to top.', 'success')
+      const result = await queueFirestoreWrite(
+        () =>
+          updateDoc(doc(db, 'users', user.uid, 'notes', note.id), {
+            isPinned: !note.isPinned,
+            lastUpdatedAt: Timestamp.now(),
+          }),
+        'Note pin update',
+      )
+      showWriteSuccess(
+        note.isPinned ? 'Note unpinned.' : 'Note pinned to top.',
+        result,
+      )
     } catch {
       addToast('Unable to update that note right now.', 'error')
     }
@@ -835,17 +893,25 @@ export default function DashboardPage() {
 
     try {
       if (activeTaskGroup?.id) {
-        await updateDoc(
-          doc(db, 'users', user.uid, 'taskGroups', activeTaskGroup.id),
-          payload,
+        const result = await queueFirestoreWrite(
+          () =>
+            updateDoc(
+              doc(db, 'users', user.uid, 'taskGroups', activeTaskGroup.id),
+              payload,
+            ),
+          'Task group update',
         )
-        addToast('Task group updated.', 'success')
+        showWriteSuccess('Task group updated.', result)
       } else {
-        await addDoc(collection(db, 'users', user.uid, 'taskGroups'), {
-          ...payload,
-          createdAt: timestamp,
-        })
-        addToast(`${taskGroupDraft.title} added to Tasks.`, 'success')
+        const result = await queueFirestoreWrite(
+          () =>
+            addDoc(collection(db, 'users', user.uid, 'taskGroups'), {
+              ...payload,
+              createdAt: timestamp,
+            }),
+          'New task group',
+        )
+        showWriteSuccess(`${taskGroupDraft.title} added to Tasks.`, result)
       }
 
       setIsTaskGroupModalOpen(false)
@@ -864,12 +930,13 @@ export default function DashboardPage() {
     }
 
     try {
-      await updateDoc(
-        doc(db, 'users', user.uid, 'taskGroups', taskGroup.id),
-        {
-          tasks,
-          lastUpdatedAt: Timestamp.now(),
-        },
+      await queueFirestoreWrite(
+        () =>
+          updateDoc(doc(db, 'users', user.uid, 'taskGroups', taskGroup.id), {
+            tasks,
+            lastUpdatedAt: Timestamp.now(),
+          }),
+        'Task update',
       )
     } catch (error) {
       addToast('Unable to update that to-do point right now.', 'error')
@@ -884,15 +951,18 @@ export default function DashboardPage() {
     }
 
     try {
-      await updateDoc(
-        doc(db, 'users', user.uid, 'taskGroups', taskGroup.id),
-        { isPinned: !taskGroup.isPinned },
+      const result = await queueFirestoreWrite(
+        () =>
+          updateDoc(doc(db, 'users', user.uid, 'taskGroups', taskGroup.id), {
+            isPinned: !taskGroup.isPinned,
+          }),
+        'Task group pin update',
       )
-      addToast(
+      showWriteSuccess(
         taskGroup.isPinned
           ? 'Task group unpinned.'
           : 'Task group pinned to top.',
-        'success',
+        result,
       )
     } catch {
       addToast('Unable to update that task group right now.', 'error')
@@ -905,10 +975,14 @@ export default function DashboardPage() {
     }
 
     try {
-      await deleteDoc(
-        doc(db, 'users', user.uid, 'taskGroups', taskGroupToDelete.id),
+      const result = await queueFirestoreWrite(
+        () =>
+          deleteDoc(
+            doc(db, 'users', user.uid, 'taskGroups', taskGroupToDelete.id),
+          ),
+        'Task group removal',
       )
-      addToast(`${taskGroupToDelete.title} removed.`, 'success')
+      showWriteSuccess(`${taskGroupToDelete.title} removed.`, result)
       setTaskGroupToDelete(null)
     } catch {
       addToast('Unable to remove that task group right now.', 'error')
@@ -963,23 +1037,31 @@ export default function DashboardPage() {
 
     try {
       if (activeCalendarEntry?.id) {
-        await updateDoc(
-          doc(
-            db,
-            'users',
-            user.uid,
-            'calendarEntries',
-            activeCalendarEntry.id,
-          ),
-          payload,
+        const result = await queueFirestoreWrite(
+          () =>
+            updateDoc(
+              doc(
+                db,
+                'users',
+                user.uid,
+                'calendarEntries',
+                activeCalendarEntry.id,
+              ),
+              payload,
+            ),
+          'Calendar target update',
         )
-        addToast('Calendar target updated.', 'success')
+        showWriteSuccess('Calendar target updated.', result)
       } else {
-        await addDoc(collection(db, 'users', user.uid, 'calendarEntries'), {
-          ...payload,
-          createdAt: timestamp,
-        })
-        addToast(`${entryDraft.title} scheduled.`, 'success')
+        const result = await queueFirestoreWrite(
+          () =>
+            addDoc(collection(db, 'users', user.uid, 'calendarEntries'), {
+              ...payload,
+              createdAt: timestamp,
+            }),
+          'New calendar target',
+        )
+        showWriteSuccess(`${entryDraft.title} scheduled.`, result)
       }
 
       closeCalendarEntryModal()
@@ -996,16 +1078,23 @@ export default function DashboardPage() {
     }
 
     try {
-      await deleteDoc(
-        doc(
-          db,
-          'users',
-          user.uid,
-          'calendarEntries',
-          calendarEntryToDelete.id,
-        ),
+      const result = await queueFirestoreWrite(
+        () =>
+          deleteDoc(
+            doc(
+              db,
+              'users',
+              user.uid,
+              'calendarEntries',
+              calendarEntryToDelete.id,
+            ),
+          ),
+        'Calendar target removal',
       )
-      addToast(`${calendarEntryToDelete.title} removed from Calendar.`, 'success')
+      showWriteSuccess(
+        `${calendarEntryToDelete.title} removed from Calendar.`,
+        result,
+      )
       setCalendarEntryToDelete(null)
     } catch {
       addToast('Unable to remove that calendar target right now.', 'error')
@@ -1033,7 +1122,10 @@ export default function DashboardPage() {
           )
         })
 
-        await batch.commit()
+        await queueFirestoreWrite(
+          () => batch.commit(),
+          `Calendar month removal (${entryBatch.length} targets)`,
+        )
         deletedCount += entryBatch.length
       }
 
@@ -1130,6 +1222,8 @@ export default function DashboardPage() {
       />
 
       <main className="relative mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
+        <OfflineStatusBanner />
+
         {designMode === 'city' ? (
           <CityDashboard
             activeWorkspace={dashboardMode}
@@ -1897,6 +1991,9 @@ export default function DashboardPage() {
             ) : (
               <DocumentsWorkspace
                 uid={user?.uid}
+                cloudAvailable={
+                  connectivity.isOnline && !firestoreSync.usingCachedData
+                }
                 documents={documents}
                 loading={documentsLoading}
                 error={documentsError}
@@ -2079,6 +2176,9 @@ export default function DashboardPage() {
         ) : dashboardMode === 'ai' ? (
           <AiWorkspace
             userId={user?.uid}
+            cloudAvailable={
+              connectivity.isOnline && !firestoreSync.usingCachedData
+            }
             projects={projects}
             launchpadItems={launchpadItems}
             notes={notes}

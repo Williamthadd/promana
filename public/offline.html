@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#7c3aed" />
+    <title>ProMana is offline</title>
+    <style>
+      :root { color-scheme: light dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; background: #f5f3ff; color: #201a2c; }
+      main { width: min(100%, 460px); padding: 36px; border: 1px solid #ddd6fe; border-radius: 24px; background: rgba(255,255,255,.92); box-shadow: 0 24px 60px rgba(76,29,149,.14); text-align: center; }
+      img { width: 64px; height: 64px; }
+      h1 { margin: 20px 0 10px; font-size: 1.6rem; }
+      p { margin: 0 0 24px; line-height: 1.6; color: #5b5368; }
+      button { border: 0; border-radius: 999px; padding: 12px 20px; background: #7c3aed; color: white; font: inherit; font-weight: 700; cursor: pointer; }
+      @media (prefers-color-scheme: dark) {
+        body { background: #15101f; color: #f5f3ff; }
+        main { border-color: #3b3150; background: rgba(33,25,47,.96); }
+        p { color: #c9c1d6; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/pwa-icon-192.png" alt="" />
+      <h1>ProMana is offline</h1>
+      <p>The app shell was not ready for this page. Reconnect once, open ProMana, and let it finish loading so future visits can use the offline cache.</p>
+      <button type="button" onclick="location.reload()">Try again</button>
+    </main>
+  </body>
+</html>

@@ -80,7 +80,19 @@ npm run dev
 Open **`http://localhost:3000`** in your browser to access the dashboard.
 Use the dummy credentials `user@gmail.com` with password `password` to sign in.
 
-### 6. Offline QR Image Download
+The production build is an installable PWA. After one complete online visit, its versioned app shell can reopen without internet and display Firestore data already available in that browser's persistent cache. The dashboard reports **online**, **checking connection**, **offline**, and pending-sync states. Firestore edits made offline are applied locally and queued for synchronization; Google Drive and Ask AI remain unavailable until the connection returns.
+
+Development mode intentionally does not register the service worker, which avoids stale development bundles. Use `npm run build` followed by `npm run preview`, or a stable Vercel deployment, to test a true offline reload. No Firebase Console flag is required. Users must first open ProMana online, sign in, let their workspaces load, and then keep the same browser profile and origin. Private browsing, clearing site data, storage blocking, or browser storage eviction removes offline availability.
+
+See [Offline Application Mode](docs/OFFLINE_MODE.md) for deployment requirements, limitations, privacy notes, and the online-to-offline acceptance test.
+
+### 6. Offline Application Mode
+
+Nothing extra needs to run beside the deployed application. Vercel supplies the required HTTPS, the generated service worker caches the application shell, and Firestore stores previously loaded user records in IndexedDB. Use a stable production/custom domain because cache storage is isolated per origin; every changing Vercel preview URL gets a different cache.
+
+Cloud-only operations are deliberately separated from cached application data. A user can browse cached projects, shortcuts, notes, tasks, calendar entries, document metadata, settings, and limits, and can queue ordinary Firestore edits. They cannot start a new login, call Ask AI, fetch an uncached Drive file, upload to Drive, or open an external website without internet. A queued edit can still be rejected by Firestore security rules after reconnection. ProMana surfaces a detailed sync error while the page that created the edit remains open; after a reload, verify queued edits once the dashboard reconnects because Firestore exposes only aggregate pending state.
+
+### 7. Offline QR Image Download
 
 The image transfer needs a small local Node.js companion because a browser tab cannot listen for an Android phone by itself. In a second terminal, run:
 

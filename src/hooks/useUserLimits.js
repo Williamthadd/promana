@@ -2,6 +2,10 @@ import { useEffect, useState } from "react"
 import { doc, onSnapshot } from "firebase/firestore"
 import { DEFAULT_USER_LIMITS } from "../constants/userLimits"
 import { db } from "../firebase"
+import {
+  removeFirestoreSnapshot,
+  reportFirestoreSnapshot,
+} from "../features/offline-mode/firestoreSyncStore"
 
 function toPositiveInteger(value) {
   const numericValue = Number(value)
@@ -84,9 +88,14 @@ export default function useUserLimits(user) {
 
     const limitsRef = doc(db, "users", uid, "settings", "limits")
 
+    const snapshotKey = `user-limits:${uid}`
     const unsubscribe = onSnapshot(
       limitsRef,
+      { includeMetadataChanges: true },
       (snapshot) => {
+        reportFirestoreSnapshot(snapshotKey, snapshot.metadata, {
+          size: snapshot.exists() ? 1 : 0,
+        })
         const nextLimits = normalizeLimits(snapshot.data())
 
         setState({
@@ -97,16 +106,22 @@ export default function useUserLimits(user) {
         })
       },
       (nextError) => {
-        setState({
+        setState((currentState) => ({
           uid,
-          limits: DEFAULT_USER_LIMITS,
+          limits:
+            currentState.uid === uid
+              ? currentState.limits
+              : DEFAULT_USER_LIMITS,
           loading: false,
           error: nextError,
-        })
+        }))
       },
     )
 
-    return unsubscribe
+    return () => {
+      unsubscribe()
+      removeFirestoreSnapshot(snapshotKey)
+    }
   }, [uid])
 
   if (!uid) {

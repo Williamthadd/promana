@@ -40,8 +40,13 @@ import {
   removeCachedOfflineImage,
 } from '../features/offline-transfer/offlineImageCache'
 import { checkOfflineTransferAvailability } from '../features/offline-transfer/offlineTransferClient'
+import { queueFirestoreWrite } from '../features/offline-mode/firestoreSyncStore'
 
 const DRIVE_UPLOAD_CHUNK_SIZE = 2 * 1024 * 1024
+
+function isDriveAuthorizationError(error) {
+  return error?.status === 401 || error?.status === 403
+}
 
 function normalizeDriveFolderId(value) {
   const input = String(value ?? '').trim()
@@ -303,6 +308,7 @@ export default function DocumentsWorkspace({
   loading,
   error,
   addToast,
+  cloudAvailable = true,
   uploadRequest = 0,
   searchInputRef,
 }) {
@@ -342,7 +348,10 @@ export default function DocumentsWorkspace({
   const canConnectDrive =
     Boolean(driveFolderId) && normalizedFolderInput === driveFolderId
   const isDriveConnected =
-    Boolean(driveAccessToken) && canConnectDrive && !isCheckingDriveConnection
+    cloudAvailable &&
+    Boolean(driveAccessToken) &&
+    canConnectDrive &&
+    !isCheckingDriveConnection
 
   useEffect(() => {
     if (driveFolderLoading) {
@@ -360,6 +369,14 @@ export default function DocumentsWorkspace({
       return undefined
     }
 
+    if (!cloudAvailable) {
+      // Keep the session token while offline. A network failure is not proof
+      // that the user's Google authorization was revoked.
+      setDriveAccessToken(storedAccessToken)
+      setIsCheckingDriveConnection(false)
+      return undefined
+    }
+
     setIsCheckingDriveConnection(true)
 
     void requestDriveApi(storedAccessToken, {
@@ -373,10 +390,14 @@ export default function DocumentsWorkspace({
           setDriveAccessToken(storedAccessToken)
         }
       })
-      .catch(() => {
+      .catch((connectionError) => {
         if (!isCancelled) {
-          clearGoogleDriveAccessToken(uid)
-          setDriveAccessToken('')
+          if (isDriveAuthorizationError(connectionError)) {
+            clearGoogleDriveAccessToken(uid)
+            setDriveAccessToken('')
+          } else {
+            setDriveAccessToken(storedAccessToken)
+          }
         }
       })
       .finally(() => {
@@ -388,7 +409,7 @@ export default function DocumentsWorkspace({
     return () => {
       isCancelled = true
     }
-  }, [driveFolderId, driveFolderLoading, uid])
+  }, [cloudAvailable, driveFolderId, driveFolderLoading, uid])
 
   useEffect(() => {
     if (
@@ -396,6 +417,14 @@ export default function DocumentsWorkspace({
       driveFolderLoading ||
       isCheckingDriveConnection
     ) {
+      return
+    }
+
+    if (!cloudAvailable) {
+      addToast(
+        'Google Drive uploads are unavailable while ProMana is offline.',
+        'info',
+      )
       return
     }
 
@@ -413,6 +442,7 @@ export default function DocumentsWorkspace({
   }, [
     addToast,
     canConnectDrive,
+    cloudAvailable,
     driveFolderId,
     driveFolderLoading,
     isCheckingDriveConnection,
@@ -420,6 +450,12 @@ export default function DocumentsWorkspace({
     uid,
     uploadRequest,
   ])
+
+  useEffect(() => {
+    if (!cloudAvailable && !isUploading) {
+      setIsUploadOpen(false)
+    }
+  }, [cloudAvailable, isUploading])
 
   useEffect(() => {
     if (!driveFolderLoading) {
@@ -483,6 +519,14 @@ export default function DocumentsWorkspace({
       return
     }
 
+    if (!cloudAvailable) {
+      addToast(
+        'Reconnect to the internet before changing your Google Drive folder.',
+        'info',
+      )
+      return
+    }
+
     if (!normalizedFolderInput) {
       addToast('Enter a valid Google Drive folder ID or folder URL.', 'error')
       return
@@ -492,13 +536,17 @@ export default function DocumentsWorkspace({
     setIsSavingFolder(true)
 
     try {
-      await setDoc(
-        doc(db, 'users', uid, 'settings', 'googleDrive'),
-        {
-          folderId: normalizedFolderInput,
-          lastUpdatedAt: Timestamp.now(),
-        },
-        { merge: true },
+      const result = await queueFirestoreWrite(
+        () =>
+          setDoc(
+            doc(db, 'users', uid, 'settings', 'googleDrive'),
+            {
+              folderId: normalizedFolderInput,
+              lastUpdatedAt: Timestamp.now(),
+            },
+            { merge: true },
+          ),
+        'Google Drive folder setting',
       )
       setFolderInput(normalizedFolderInput)
 
@@ -506,9 +554,19 @@ export default function DocumentsWorkspace({
         clearGoogleDriveAccessToken(uid)
         setDriveAccessToken('')
         setIsUploadOpen(false)
-        addToast('Drive folder saved. Reconnect Drive to use it.', 'success')
+        addToast(
+          result.queued
+            ? 'Drive folder saved locally and waiting to sync. Reconnect Drive after it finishes.'
+            : 'Drive folder saved. Reconnect Drive to use it.',
+          result.queued ? 'info' : 'success',
+        )
       } else {
-        addToast('Google Drive folder is already up to date.', 'info')
+        addToast(
+          result.queued
+            ? 'Drive folder update is saved locally and waiting to sync.'
+            : 'Google Drive folder is already up to date.',
+          'info',
+        )
       }
     } catch (folderError) {
       addToast(
@@ -523,6 +581,14 @@ export default function DocumentsWorkspace({
   async function handleConnectDrive() {
     if (!uid || auth.currentUser?.uid !== uid) {
       addToast('You need to be signed in to connect Google Drive.', 'error')
+      return
+    }
+
+    if (!cloudAvailable) {
+      addToast(
+        'Google Drive connection is unavailable while ProMana is offline.',
+        'info',
+      )
       return
     }
 
@@ -548,7 +614,10 @@ export default function DocumentsWorkspace({
         'success',
       )
     } catch (connectionError) {
-      if (connectedAccessToken) {
+      if (
+        connectedAccessToken &&
+        isDriveAuthorizationError(connectionError)
+      ) {
         clearGoogleDriveAccessToken(uid)
         setDriveAccessToken('')
       }
@@ -570,6 +639,14 @@ export default function DocumentsWorkspace({
   async function handleUpload({ file, title }) {
     if (!uid || auth.currentUser?.uid !== uid) {
       addToast('You need to be signed in to upload files.', 'error')
+      return false
+    }
+
+    if (!cloudAvailable) {
+      addToast(
+        'Reconnect to the internet before uploading a file to Google Drive.',
+        'info',
+      )
       return false
     }
 
@@ -622,6 +699,10 @@ export default function DocumentsWorkspace({
       })
       const timestamp = Timestamp.now()
 
+      // This write deliberately waits for Firebase confirmation. The Drive
+      // upload and its Firestore record form one cross-service operation; a
+      // locally queued metadata write could later be rejected and leave an
+      // invisible orphan in Drive.
       await setDoc(metadataRef, {
         title,
         originalName: file.name,
@@ -673,7 +754,7 @@ export default function DocumentsWorkspace({
       }
       return true
     } catch (uploadError) {
-      if (uploadError?.status === 401) {
+      if (isDriveAuthorizationError(uploadError)) {
         clearGoogleDriveAccessToken(uid)
         setDriveAccessToken('')
       }
@@ -705,6 +786,14 @@ export default function DocumentsWorkspace({
       return
     }
 
+    if (!cloudAvailable) {
+      addToast(
+        'Copying from Google Drive is unavailable while ProMana is offline.',
+        'info',
+      )
+      return
+    }
+
     if (document.kind !== 'image' || !document.driveFileId) {
       addToast('This image is not available for clipboard copying.', 'error')
       return
@@ -724,7 +813,7 @@ export default function DocumentsWorkspace({
         'success',
       )
     } catch (copyError) {
-      if (copyError?.status === 401) {
+      if (isDriveAuthorizationError(copyError)) {
         clearGoogleDriveAccessToken(uid)
         setDriveAccessToken('')
       }
@@ -811,6 +900,12 @@ export default function DocumentsWorkspace({
       if (!imageBlob) {
         source = 'drive'
 
+        if (!cloudAvailable) {
+          throw new Error(
+            'This image is not cached on this computer yet. Reconnect once to prepare it, then Offline QR will work without internet.',
+          )
+        }
+
         if (!driveAccessToken) {
           throw new Error(
             'This image is not cached on this computer yet. Reconnect Google Drive while online once, then prepare Offline QR again.',
@@ -859,7 +954,7 @@ export default function DocumentsWorkspace({
         source,
       })
     } catch (offlineError) {
-      if (offlineError?.status === 401) {
+      if (isDriveAuthorizationError(offlineError)) {
         clearGoogleDriveAccessToken(uid)
         setDriveAccessToken('')
       }
@@ -880,6 +975,14 @@ export default function DocumentsWorkspace({
       return
     }
 
+    if (!cloudAvailable) {
+      addToast(
+        'Reconnect to the internet before deleting a file from Google Drive.',
+        'info',
+      )
+      return
+    }
+
     if (!driveAccessToken) {
       addToast('Reconnect Google Drive before removing this file.', 'error')
       return
@@ -896,6 +999,9 @@ export default function DocumentsWorkspace({
         })
       }
 
+      // Unlike ordinary Firestore-only edits, this cross-service operation is
+      // never queued for offline use. Wait for Firebase confirmation before
+      // reporting the Drive deletion as complete.
       await deleteDoc(doc(db, 'users', uid, 'documents', document.id))
 
       if (document.driveFileId) {
@@ -911,7 +1017,7 @@ export default function DocumentsWorkspace({
 
       addToast(`${document.title || document.originalName} removed.`, 'success')
     } catch (deleteError) {
-      if (deleteError?.status === 401) {
+      if (isDriveAuthorizationError(deleteError)) {
         clearGoogleDriveAccessToken(uid)
         setDriveAccessToken('')
       }
@@ -942,14 +1048,18 @@ export default function DocumentsWorkspace({
             </p>
             <div
               className={
-                isDriveConnected
+                !cloudAvailable
+                  ? 'mt-3 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 dark:bg-white/10 dark:text-slate-200'
+                  : isDriveConnected
                   ? 'mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200'
                   : isCheckingDriveConnection || isConnectingDrive
                     ? 'mt-3 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 dark:bg-blue-500/10 dark:text-blue-200'
                     : 'mt-3 inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 dark:bg-amber-500/10 dark:text-amber-200'
               }
             >
-              {isCheckingDriveConnection || isConnectingDrive ? (
+              {!cloudAvailable ? (
+                <WifiOff className="h-4 w-4" />
+              ) : isCheckingDriveConnection || isConnectingDrive ? (
                 <LoaderCircle className="h-4 w-4 animate-spin" />
               ) : isDriveConnected ? (
                 <ShieldCheck className="h-4 w-4" />
@@ -957,7 +1067,9 @@ export default function DocumentsWorkspace({
                 <Cloud className="h-4 w-4" />
               )}
               <span>
-                {isConnectingDrive
+                {!cloudAvailable
+                  ? 'Offline — showing cached file details.'
+                  : isConnectingDrive
                   ? 'Connecting Google Drive...'
                   : isCheckingDriveConnection
                     ? 'Checking Google Drive connection...'
@@ -970,6 +1082,13 @@ export default function DocumentsWorkspace({
                           : 'Google Drive disconnected. Reconnect to upload files.'}
               </span>
             </div>
+            {!cloudAvailable ? (
+              <p className="mt-2 max-w-2xl text-xs font-medium leading-5 text-slate-500 dark:text-slate-400">
+                Drive previews, downloads, uploads, copying, and deletion will
+                return when you reconnect. Prepared image copies can still use
+                Offline QR.
+              </p>
+            ) : null}
             {documents.some((document) => document.kind === 'image') ? (
               <div className="mt-2 flex flex-wrap gap-2">
                 <button
@@ -1033,7 +1152,9 @@ export default function DocumentsWorkspace({
                     id="google-drive-folder"
                     type="text"
                     value={folderInput}
-                    disabled={driveFolderLoading || isSavingFolder}
+                    disabled={
+                      !cloudAvailable || driveFolderLoading || isSavingFolder
+                    }
                     onChange={(event) => setFolderInput(event.target.value)}
                     placeholder="Folder ID or https://drive.google.com/drive/folders/..."
                     className="w-full rounded-2xl border border-white/70 bg-white py-3 pl-11 pr-4 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:cursor-wait disabled:opacity-60 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:focus:ring-blue-500/20"
@@ -1042,6 +1163,7 @@ export default function DocumentsWorkspace({
                 <button
                   type="button"
                   disabled={
+                    !cloudAvailable ||
                     driveFolderLoading ||
                     isSavingFolder ||
                     !normalizedFolderInput
@@ -1066,13 +1188,20 @@ export default function DocumentsWorkspace({
             <button
               type="button"
               disabled={
+                !cloudAvailable ||
                 isConnectingDrive ||
                 isCheckingDriveConnection ||
                 driveFolderLoading ||
                 !canConnectDrive
               }
               onClick={handleConnectDrive}
-              title={canConnectDrive ? undefined : 'Save a Drive folder first'}
+              title={
+                !cloudAvailable
+                  ? 'Google Drive is unavailable while offline'
+                  : canConnectDrive
+                    ? undefined
+                    : 'Save a Drive folder first'
+              }
               className="inline-flex items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-sm font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-wait disabled:opacity-60 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200"
             >
               {isConnectingDrive ? (
@@ -1090,10 +1219,12 @@ export default function DocumentsWorkspace({
             </button>
             <button
               type="button"
-              disabled={!isDriveConnected}
+              disabled={!cloudAvailable || !isDriveConnected}
               onClick={() => setIsUploadOpen(true)}
               title={
-                isDriveConnected
+                !cloudAvailable
+                  ? 'Google Drive uploads are unavailable while offline'
+                  : isDriveConnected
                   ? undefined
                   : 'Configure and reconnect Google Drive first'
               }
@@ -1171,13 +1302,15 @@ export default function DocumentsWorkspace({
             screenshot directly from the clipboard.
           </p>
           <button
-            disabled={!isDriveConnected}
+            disabled={!cloudAvailable || !isDriveConnected}
             type="button"
             onClick={() => setIsUploadOpen(true)}
             className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <FilePlus2 className="h-4 w-4" />
-            {isDriveConnected
+            {!cloudAvailable
+              ? 'Reconnect to add files'
+              : isDriveConnected
               ? 'Add your first file'
               : 'Reconnect Drive above first'}
           </button>
@@ -1199,6 +1332,7 @@ export default function DocumentsWorkspace({
             <DocumentCard
               key={document.id}
               document={document}
+              cloudAvailable={cloudAvailable}
               onPreview={setPreviewDocument}
               onCopyImage={handleCopyImage}
               onOfflineTransfer={handleOfflineTransfer}
@@ -1244,6 +1378,7 @@ export default function DocumentsWorkspace({
       <DocumentPreviewModal
         open={Boolean(previewDocument)}
         document={previewDocument}
+        cloudAvailable={cloudAvailable}
         onClose={() => setPreviewDocument(null)}
       />
 

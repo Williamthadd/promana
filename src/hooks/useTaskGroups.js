@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react"
 import { collection, onSnapshot } from "firebase/firestore"
 import { db } from "../firebase"
+import {
+  removeFirestoreSnapshot,
+  reportFirestoreSnapshot,
+} from "../features/offline-mode/firestoreSyncStore"
 import { getTimeValue } from "../utils/formatters"
 import { normalizeTaskItems } from "../utils/taskUtils"
 
@@ -27,9 +31,14 @@ export default function useTaskGroups(uid) {
       return undefined
     }
 
+    const snapshotKey = `task-groups:${uid}`
     const unsubscribe = onSnapshot(
       collection(db, "users", uid, "taskGroups"),
+      { includeMetadataChanges: true },
       (snapshot) => {
+        reportFirestoreSnapshot(snapshotKey, snapshot.metadata, {
+          size: snapshot.size,
+        })
         const nextTaskGroups = snapshot.docs.map((documentSnapshot) => {
           const data = documentSnapshot.data()
 
@@ -50,16 +59,20 @@ export default function useTaskGroups(uid) {
         })
       },
       (nextError) => {
-        setState({
+        setState((currentState) => ({
           uid,
-          taskGroups: [],
+          taskGroups:
+            currentState.uid === uid ? currentState.taskGroups : [],
           error: nextError,
           loading: false,
-        })
+        }))
       },
     )
 
-    return unsubscribe
+    return () => {
+      unsubscribe()
+      removeFirestoreSnapshot(snapshotKey)
+    }
   }, [uid])
 
   if (!uid) {

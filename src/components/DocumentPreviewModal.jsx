@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Download, ExternalLink, LoaderCircle, X } from 'lucide-react'
+import {
+  Download,
+  ExternalLink,
+  LoaderCircle,
+  WifiOff,
+  X,
+} from 'lucide-react'
 import {
   formatFileSize,
   getDocumentTypeLabel,
@@ -30,7 +36,7 @@ function getViewUrl(fileRecord) {
   return fileRecord.downloadUrl || ''
 }
 
-function DocumentPreviewPanel({ fileRecord, onClose }) {
+function DocumentPreviewPanel({ fileRecord, cloudAvailable, onClose }) {
   const [isLoading, setIsLoading] = useState(true)
   const previewUrl = getPreviewUrl(fileRecord)
   const viewUrl = getViewUrl(fileRecord)
@@ -71,7 +77,22 @@ function DocumentPreviewPanel({ fileRecord, onClose }) {
         </div>
 
         <div className="relative mt-5 min-h-0 flex-1 overflow-hidden rounded-3xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950">
-          {isLoading && previewUrl ? (
+          {!cloudAvailable ? (
+            <div className="grid h-[65vh] place-items-center p-6 text-center">
+              <div className="max-w-md">
+                <WifiOff className="mx-auto h-10 w-10 text-slate-400" />
+                <p className="mt-4 font-bold text-slate-700 dark:text-slate-200">
+                  Google Drive preview is unavailable offline.
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
+                  The cached file details remain available in ProMana. Reconnect
+                  to preview or download the original file.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {cloudAvailable && isLoading && previewUrl ? (
             <div className="absolute inset-0 z-10 grid place-items-center bg-white dark:bg-slate-950">
               <div className="text-center">
                 <LoaderCircle className="mx-auto h-9 w-9 animate-spin text-blue-600" />
@@ -82,7 +103,7 @@ function DocumentPreviewPanel({ fileRecord, onClose }) {
             </div>
           ) : null}
 
-          {previewUrl ? (
+          {cloudAvailable && previewUrl ? (
             <iframe
               src={previewUrl}
               title={fileRecord.title || fileRecord.originalName}
@@ -90,7 +111,7 @@ function DocumentPreviewPanel({ fileRecord, onClose }) {
               className="h-[65vh] w-full bg-white"
               allow="fullscreen"
             />
-          ) : (
+          ) : cloudAvailable ? (
             <div className="grid h-[65vh] place-items-center p-6 text-center">
               <div>
                 <p className="font-bold text-slate-700 dark:text-slate-200">
@@ -101,12 +122,13 @@ function DocumentPreviewPanel({ fileRecord, onClose }) {
                 </p>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
 
         <p className="mt-3 text-xs font-medium text-slate-500 dark:text-slate-400">
-          Google Drive may ask you to sign in with the same email used by your
-          ProMana account.
+          {cloudAvailable
+            ? 'Google Drive may ask you to sign in with the same email used by your ProMana account.'
+            : 'Reconnect to the internet to access the file stored in Google Drive.'}
         </p>
 
         <div className="mt-5 flex shrink-0 flex-wrap justify-end gap-3 border-t border-white/20 pt-4 dark:border-white/5">
@@ -117,7 +139,7 @@ function DocumentPreviewPanel({ fileRecord, onClose }) {
           >
             Close
           </button>
-          {viewUrl ? (
+          {cloudAvailable && viewUrl ? (
             <a
               href={viewUrl}
               target="_blank"
@@ -128,7 +150,7 @@ function DocumentPreviewPanel({ fileRecord, onClose }) {
               Open in Drive
             </a>
           ) : null}
-          {fileRecord.downloadUrl ? (
+          {cloudAvailable && fileRecord.downloadUrl ? (
             <a
               href={fileRecord.downloadUrl}
               target="_blank"
@@ -148,6 +170,7 @@ function DocumentPreviewPanel({ fileRecord, onClose }) {
 export default function DocumentPreviewModal({
   document: fileRecord,
   open,
+  cloudAvailable = true,
   onClose,
 }) {
   if (!open || !fileRecord || typeof document === 'undefined') {
@@ -158,6 +181,7 @@ export default function DocumentPreviewModal({
     <DocumentPreviewPanel
       key={fileRecord.id}
       fileRecord={fileRecord}
+      cloudAvailable={cloudAvailable}
       onClose={onClose}
     />,
     document.body,

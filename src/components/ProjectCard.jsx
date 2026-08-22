@@ -15,6 +15,7 @@ import {
 import { DEFAULT_PROJECT_ENVIRONMENTS } from '../constants/projectEnvironments'
 import { Timestamp, deleteField, doc, updateDoc } from 'firebase/firestore'
 import { auth, db } from '../firebase'
+import { queueFirestoreWrite } from '../features/offline-mode/firestoreSyncStore'
 import { EDITORS } from '../constants/editorSchemes'
 import {
   getRepositoryLabel,
@@ -285,10 +286,22 @@ export default function ProjectCard({
         ? { ...patch, lastUpdatedAt: patch.lastUpdatedAt ?? Timestamp.now() }
         : patch
 
-      await updateDoc(doc(db, 'users', uid, 'projects', project.id), nextPatch)
+      const writeResult = await queueFirestoreWrite(
+        () =>
+          updateDoc(
+            doc(db, 'users', uid, 'projects', project.id),
+            nextPatch,
+          ),
+        `update ${project.displayName ?? 'project'}`,
+      )
 
       if (successMessage) {
-        addToast(successMessage, 'success')
+        addToast(
+          writeResult.queued
+            ? `${successMessage} Saved locally and waiting to sync.`
+            : successMessage,
+          'success',
+        )
       }
 
       return true

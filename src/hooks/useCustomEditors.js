@@ -2,6 +2,11 @@ import { useEffect, useState } from 'react'
 import { doc, onSnapshot, setDoc, Timestamp } from 'firebase/firestore'
 import { normalizeCustomEditor } from '../constants/editorSchemes'
 import { db } from '../firebase'
+import {
+  queueFirestoreWrite,
+  removeFirestoreSnapshot,
+  reportFirestoreSnapshot,
+} from '../features/offline-mode/firestoreSyncStore'
 
 function normalizeCustomEditors(editors = []) {
   const normalizedEditors = editors
@@ -27,9 +32,14 @@ export default function useCustomEditors(uid) {
     }
 
     const editorsRef = doc(db, 'users', uid, 'settings', 'editors')
+    const snapshotKey = `custom-editors:${uid}`
     const unsubscribe = onSnapshot(
       editorsRef,
+      { includeMetadataChanges: true },
       (snapshot) => {
+        reportFirestoreSnapshot(snapshotKey, snapshot.metadata, {
+          size: snapshot.exists() ? 1 : 0,
+        })
         setState({
           uid,
           editors: normalizeCustomEditors(snapshot.data()?.customEditors),
@@ -38,11 +48,19 @@ export default function useCustomEditors(uid) {
         })
       },
       (error) => {
-        setState({ uid, editors: [], loading: false, error })
+        setState((currentState) => ({
+          uid,
+          editors: currentState.uid === uid ? currentState.editors : [],
+          loading: false,
+          error,
+        }))
       },
     )
 
-    return unsubscribe
+    return () => {
+      unsubscribe()
+      removeFirestoreSnapshot(snapshotKey)
+    }
   }, [uid])
 
   async function saveCustomEditors(editors) {
@@ -52,20 +70,27 @@ export default function useCustomEditors(uid) {
 
     const normalizedEditors = normalizeCustomEditors(editors)
 
-    await setDoc(
-      doc(db, 'users', uid, 'settings', 'editors'),
-      {
-        customEditors: normalizedEditors.map(({ id, name, scheme }) => ({
-          id,
-          name,
-          scheme,
-        })),
-        updatedAt: Timestamp.now(),
-      },
-      { merge: true },
+    const writeResult = await queueFirestoreWrite(
+      () =>
+        setDoc(
+          doc(db, 'users', uid, 'settings', 'editors'),
+          {
+            customEditors: normalizedEditors.map(({ id, name, scheme }) => ({
+              id,
+              name,
+              scheme,
+            })),
+            updatedAt: Timestamp.now(),
+          },
+          { merge: true },
+        ),
+      'Project IDE settings',
     )
 
-    return normalizedEditors
+    return {
+      editors: normalizedEditors,
+      queued: writeResult.queued,
+    }
   }
 
   if (!uid) {

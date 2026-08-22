@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore'
 import { auth, db } from '../firebase'
+import {
+  removeFirestoreSnapshot,
+  reportFirestoreSnapshot,
+} from '../features/offline-mode/firestoreSyncStore'
 import { getTimeValue } from '../utils/formatters'
 
 function sortLaunchpadItems(items) {
@@ -38,9 +42,14 @@ export default function useLaunchpad() {
       orderBy('createdAt', 'desc'),
     )
 
+    const snapshotKey = `launchpad:${uid}`
     const unsubscribe = onSnapshot(
       launchpadQuery,
+      { includeMetadataChanges: true },
       (snapshot) => {
+        reportFirestoreSnapshot(snapshotKey, snapshot.metadata, {
+          size: snapshot.size,
+        })
         const nextItems = snapshot.docs.map((documentSnapshot) => ({
           id: documentSnapshot.id,
           ...documentSnapshot.data(),
@@ -54,16 +63,19 @@ export default function useLaunchpad() {
         })
       },
       (nextError) => {
-        setState({
+        setState((currentState) => ({
           uid,
-          items: [],
+          items: currentState.uid === uid ? currentState.items : [],
           loading: false,
           error: nextError,
-        })
+        }))
       },
     )
 
-    return unsubscribe
+    return () => {
+      unsubscribe()
+      removeFirestoreSnapshot(snapshotKey)
+    }
   }, [uid])
 
   if (!uid) {

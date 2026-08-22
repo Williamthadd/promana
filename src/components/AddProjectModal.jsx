@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { X, FolderPlus, LoaderCircle } from 'lucide-react'
 import { addDoc, collection, Timestamp } from 'firebase/firestore'
 import { auth, db } from '../firebase'
+import { queueFirestoreWrite } from '../features/offline-mode/firestoreSyncStore'
 import { LANGUAGE_COLORS } from '../constants/languageColors'
 import { normalizeProjectPath, normalizeRepositoryUrl } from '../utils/formatters'
 import { buildProjectEnvironments } from '../utils/projectEnvironments'
@@ -140,23 +141,32 @@ function AddProjectModalForm({
     setIsSaving(true)
 
     try {
-      await addDoc(collection(db, 'users', user.uid, 'projects'), {
-        displayName,
-        absolutePath,
-        repositoryUrl,
-        environments,
-        primaryLanguage: languagesList[0] ?? 'Other',
-        languagesList,
-        tags: [],
-        notes: '',
-        isPinned: false,
-        isBroken: false,
-        createdAt: timestamp,
-        lastUpdatedAt: timestamp,
-        lastOpenedAt: null,
-      })
+      const writeResult = await queueFirestoreWrite(
+        () =>
+          addDoc(collection(db, 'users', user.uid, 'projects'), {
+            displayName,
+            absolutePath,
+            repositoryUrl,
+            environments,
+            primaryLanguage: languagesList[0] ?? 'Other',
+            languagesList,
+            tags: [],
+            notes: '',
+            isPinned: false,
+            isBroken: false,
+            createdAt: timestamp,
+            lastUpdatedAt: timestamp,
+            lastOpenedAt: null,
+          }),
+        `add ${displayName} project`,
+      )
 
-      addToast(`Added ${displayName}.`, 'success')
+      addToast(
+        writeResult.queued
+          ? `Added ${displayName} locally. It will sync when ProMana is online.`
+          : `Added ${displayName}.`,
+        'success',
+      )
       onClose()
     } catch (error) {
       addToast(getImportErrorMessage(error), 'error')
