@@ -18,6 +18,30 @@ test('PWA manifest defines a scoped standalone application', async () => {
   assert.ok(manifest.icons.some((icon) => icon.sizes === '192x192'))
   assert.ok(manifest.icons.some((icon) => icon.sizes === '512x512'))
   assert.ok(manifest.icons.some((icon) => icon.purpose.includes('maskable')))
+  assert.ok(
+    manifest.shortcuts.some((shortcut) => shortcut.url === '/receiver'),
+    'the installed PWA must expose the public optical receiver',
+  )
+})
+
+test('optical receiver is public and its decoder has no runtime network dependency', async () => {
+  const [appSource, workerSource, cssSource] = await Promise.all([
+    readFile(new URL('../src/App.jsx', import.meta.url), 'utf8'),
+    readFile(
+      new URL(
+        '../src/features/optical-transfer/receiver/qrDecode.worker.js',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+    readFile(new URL('../src/index.css', import.meta.url), 'utf8'),
+  ])
+
+  assert.match(appSource, /path="\/receiver"/)
+  assert.match(workerSource, /from 'jsqr'/)
+  assert.doesNotMatch(workerSource, /https?:\/\//i)
+  assert.doesNotMatch(workerSource, /\bfetch\s*\(/)
+  assert.doesNotMatch(cssSource, /@import\s+url\(/i)
 })
 
 test('precache list includes emitted app assets but excludes source maps', () => {

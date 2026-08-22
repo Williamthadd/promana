@@ -20,7 +20,7 @@ Instead of navigating directories or digging through browser bookmarks, ProMana 
 ### 📝 Notes, Docs & Images Workspace
 * **Code Snippets**: Save reusable boilerplate, SQL scripts, shell commands, and configs with language labels.
 * **Document Shelf**: Store and preview PDF, DOCX, XLSX, CSV, PNG, JPG, JPEG, GIF, and WebP files.
-* **Offline QR Image Download**: Send a cached image directly to an Android phone over the same Wi-Fi or hotspot using a one-time local QR transfer.
+* **Optical QR Image Transfer**: Send a cached image to an Android phone through animated QR frames containing the actual bytes—no network, companion server, or cloud relay.
 * **Clipboard Capture**: Paste screenshots directly into the upload area with `Ctrl+V` or `Cmd+V`.
 
 ### 📋 Tasks Workspace
@@ -92,14 +92,21 @@ Nothing extra needs to run beside the deployed application. Vercel supplies the 
 
 Cloud-only operations are deliberately separated from cached application data. A user can browse cached projects, shortcuts, notes, tasks, calendar entries, document metadata, settings, and limits, and can queue ordinary Firestore edits. They cannot start a new login, call Ask AI, fetch an uncached Drive file, upload to Drive, or open an external website without internet. A queued edit can still be rejected by Firestore security rules after reconnection. ProMana surfaces a detailed sync error while the page that created the edit remains open; after a reload, verify queued edits once the dashboard reconnects because Firestore exposes only aggregate pending state.
 
-### 7. Offline QR Image Download
+### 7. Network-Independent Optical QR Transfer
 
-The image transfer needs a small local Node.js companion because a browser tab cannot listen for an Android phone by itself. In a second terminal, run:
+No companion process or second terminal is needed. Open the QR action on a cached
+image in Docs & Images, then scan the animated frames with ProMana's public
+`/receiver` page on the phone. The frames carry the original file bytes from the
+desktop display to the phone camera. There is no URL payload, Wi-Fi/hotspot/LAN
+requirement, Bluetooth step, cloud relay, or hidden network fallback.
 
-```bash
-npm run offline-transfer
-```
+The phone must visit `/receiver` online once and preferably install the production
+PWA before it goes offline. The bundled receiver, protocol, and camera decoder are
+then available from the service-worker cache. An older uncached Drive image still
+needs one connected desktop preparation; cached copies expire after 30 days and
+are cleared on logout. JPEG, PNG, WebP, and GIF images up to 10 MiB are accepted,
+although files below roughly 1 MiB are far more practical for optical transfer.
 
-Keep ProMana open at `http://localhost:3000`, click `Check Offline QR service`, then use the QR action on an image in Docs & Images. Uploaded/cached images can transfer with WAN access disconnected; an older uncached Drive image needs one online preparation first. Offline copies expire after 30 days and are cleared on logout. The actual phone download stays on the local network and has no cloud fallback.
-
-See [Offline QR Image Download](docs/OFFLINE_QR_DOWNLOAD.md) for the architecture, security model, firewall setup, limitations, and exact Windows/macOS-to-Android acceptance steps.
+See [Optical QR Image Transfer](docs/OPTICAL_QR_TRANSFER.md) for the packet format,
+security model, PWA setup, performance estimates, tests, limitations, and exact
+laptop-to-Android acceptance steps.

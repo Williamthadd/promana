@@ -27,9 +27,6 @@ export default function DocumentCard({
   isCopying,
   isPreparingOffline,
   isDeleting,
-  offlineTransferAvailable,
-  offlineTransferDisabled,
-  offlineTransferUnavailableReason,
 }) {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
 
@@ -125,18 +122,14 @@ export default function DocumentCard({
             {document.kind === 'image' ? (
               <span
                 className="inline-flex"
-                title={
-                  offlineTransferAvailable
-                    ? 'Download offline via QR'
-                    : offlineTransferUnavailableReason
-                }
+                title="Send image optically with animated QR codes"
               >
                 <button
                   type="button"
-                  disabled={isPreparingOffline || offlineTransferDisabled}
+                  disabled={isPreparingOffline}
                   onClick={() => void onOfflineTransfer(document)}
                   className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 text-slate-500 transition hover:border-violet-200 hover:bg-violet-50 hover:text-violet-600 disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:text-slate-300 dark:hover:border-violet-500/30 dark:hover:bg-violet-500/10 dark:hover:text-violet-300"
-                  aria-label={`Download ${document.originalName} offline via QR`}
+                  aria-label={`Send ${document.originalName} optically with QR codes`}
                 >
                   {isPreparingOffline ? (
                     <LoaderCircle className="h-4 w-4 animate-spin" />

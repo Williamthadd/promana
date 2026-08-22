@@ -6,8 +6,7 @@ import {
   Folder,
   FilePlus2,
   LoaderCircle,
-  Radio,
-  RefreshCw,
+  QrCode,
   Save,
   Search,
   SearchX,
@@ -32,14 +31,13 @@ import DocumentCard from './DocumentCard'
 import DocumentPreviewModal from './DocumentPreviewModal'
 import DocumentSkeletonCard from './DocumentSkeletonCard'
 import DocumentUploadModal from './DocumentUploadModal'
-import OfflineTransferModal from '../features/offline-transfer/OfflineTransferModal'
+import OpticalTransferModal from '../features/optical-transfer/sender/OpticalTransferModal'
 import {
   cacheOfflineImage,
   clearCachedOfflineImages,
   getCachedOfflineImage,
   removeCachedOfflineImage,
 } from '../features/offline-transfer/offlineImageCache'
-import { checkOfflineTransferAvailability } from '../features/offline-transfer/offlineTransferClient'
 import { queueFirestoreWrite } from '../features/offline-mode/firestoreSyncStore'
 
 const DRIVE_UPLOAD_CHUNK_SIZE = 2 * 1024 * 1024
@@ -323,14 +321,6 @@ export default function DocumentsWorkspace({
   const [preparingOfflineDocumentId, setPreparingOfflineDocumentId] =
     useState('')
   const [offlineTransferRequest, setOfflineTransferRequest] = useState(null)
-  const [offlineTransferService, setOfflineTransferService] = useState({
-    checking: false,
-    checked: false,
-    available: false,
-    networks: [],
-    preferredAddress: '',
-    error: '',
-  })
   const [isClearingOfflineCache, setIsClearingOfflineCache] = useState(false)
   const [driveAccessToken, setDriveAccessToken] = useState('')
   const [isCheckingDriveConnection, setIsCheckingDriveConnection] = useState(
@@ -829,26 +819,6 @@ export default function DocumentsWorkspace({
     }
   }
 
-  async function handleRefreshOfflineTransferService({ notify = true } = {}) {
-    setOfflineTransferService((currentService) => ({
-      ...currentService,
-      checking: true,
-    }))
-    const service = await checkOfflineTransferAvailability()
-    setOfflineTransferService({ ...service, checking: false, checked: true })
-
-    if (notify) {
-      addToast(
-        service.available
-          ? 'ProMana Local Transfer Service is ready.'
-          : service.error,
-        service.available ? 'success' : 'info',
-      )
-    }
-
-    return service
-  }
-
   async function handleClearOfflineCache() {
     if (!uid || isClearingOfflineCache) return
 
@@ -870,21 +840,13 @@ export default function DocumentsWorkspace({
     }
 
     if (document.kind !== 'image' || !document.driveFileId) {
-      addToast('Offline QR is available for stored images only.', 'error')
+      addToast('Optical QR transfer is available for stored images only.', 'error')
       return
     }
 
     setPreparingOfflineDocumentId(document.id)
 
     try {
-      const service = await handleRefreshOfflineTransferService({
-        notify: false,
-      })
-
-      if (!service.available) {
-        throw new Error(service.error)
-      }
-
       let cachedImage = null
 
       try {
@@ -902,13 +864,13 @@ export default function DocumentsWorkspace({
 
         if (!cloudAvailable) {
           throw new Error(
-            'This image is not cached on this computer yet. Reconnect once to prepare it, then Offline QR will work without internet.',
+            'This image is not cached on this computer yet. Reconnect once to prepare it, then optical transfer will work without internet.',
           )
         }
 
         if (!driveAccessToken) {
           throw new Error(
-            'This image is not cached on this computer yet. Reconnect Google Drive while online once, then prepare Offline QR again.',
+            'This image is not cached on this computer yet. Reconnect Google Drive while online once, then prepare optical transfer again.',
           )
         }
 
@@ -950,7 +912,6 @@ export default function DocumentsWorkspace({
       setOfflineTransferRequest({
         fileRecord: document,
         imageBlob,
-        service,
         source,
       })
     } catch (offlineError) {
@@ -1086,42 +1047,18 @@ export default function DocumentsWorkspace({
               <p className="mt-2 max-w-2xl text-xs font-medium leading-5 text-slate-500 dark:text-slate-400">
                 Drive previews, downloads, uploads, copying, and deletion will
                 return when you reconnect. Prepared image copies can still use
-                Offline QR.
+                Optical QR transfer.
               </p>
             ) : null}
             {documents.some((document) => document.kind === 'image') ? (
               <div className="mt-2 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={offlineTransferService.checking}
-                  onClick={() => void handleRefreshOfflineTransferService()}
-                  title="Check the ProMana Local Transfer Service again"
-                  className={
-                    offlineTransferService.available
-                      ? 'flex w-fit items-center gap-2 rounded-full bg-violet-50 px-3 py-1.5 text-left text-xs font-bold text-violet-700 transition hover:bg-violet-100 disabled:cursor-wait dark:bg-violet-500/10 dark:text-violet-200 dark:hover:bg-violet-500/15'
-                      : 'flex w-fit items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-left text-xs font-bold text-amber-700 transition hover:bg-amber-100 disabled:cursor-wait dark:bg-amber-500/10 dark:text-amber-200 dark:hover:bg-amber-500/15'
-                  }
+                <a
+                  href="/receiver"
+                  className="flex w-fit items-center gap-2 rounded-full bg-violet-50 px-3 py-1.5 text-left text-xs font-bold text-violet-700 transition hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-200 dark:hover:bg-violet-500/15"
                 >
-                  {offlineTransferService.checking ? (
-                    <LoaderCircle className="h-4 w-4 shrink-0 animate-spin" />
-                  ) : offlineTransferService.available ? (
-                    <Radio className="h-4 w-4 shrink-0" />
-                  ) : (
-                    <WifiOff className="h-4 w-4 shrink-0" />
-                  )}
-                  <span>
-                    {offlineTransferService.checking
-                      ? 'Checking Offline QR service…'
-                      : offlineTransferService.available
-                        ? 'Offline QR service ready'
-                        : offlineTransferService.checked
-                          ? 'Offline QR service unavailable'
-                          : 'Check Offline QR service'}
-                  </span>
-                  {!offlineTransferService.checking ? (
-                    <RefreshCw className="h-3.5 w-3.5 shrink-0 opacity-70" />
-                  ) : null}
-                </button>
+                  <QrCode className="h-4 w-4 shrink-0" />
+                  Open optical receiver
+                </a>
                 <button
                   type="button"
                   disabled={isClearingOfflineCache}
@@ -1342,22 +1279,6 @@ export default function DocumentsWorkspace({
                 preparingOfflineDocumentId === document.id
               }
               isDeleting={deletingDocumentId === document.id}
-              offlineTransferAvailable={
-                offlineTransferService.available &&
-                !offlineTransferService.checking
-              }
-              offlineTransferDisabled={
-                offlineTransferService.checked &&
-                !offlineTransferService.available
-              }
-              offlineTransferUnavailableReason={
-                offlineTransferService.checking
-                  ? 'Checking the ProMana Local Transfer Service…'
-                  : offlineTransferService.checked
-                    ? offlineTransferService.error ||
-                      'Start the ProMana Local Transfer Service and allow browser Local Network Access.'
-                    : 'Click to check the ProMana Local Transfer Service and create an offline QR.'
-              }
             />
           ))}
         </section>
@@ -1382,7 +1303,7 @@ export default function DocumentsWorkspace({
         onClose={() => setPreviewDocument(null)}
       />
 
-      <OfflineTransferModal
+      <OpticalTransferModal
         open={Boolean(offlineTransferRequest)}
         request={offlineTransferRequest}
         onNotice={addToast}

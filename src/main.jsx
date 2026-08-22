@@ -8,7 +8,9 @@ import { registerServiceWorker } from './pwa/registerServiceWorker.js'
 const preferredTheme = window.localStorage.getItem('proman-theme')
 document.documentElement.classList.toggle('dark', preferredTheme === 'dark')
 
-inject()
+if (window.location.pathname !== '/receiver') {
+  inject()
+}
 registerServiceWorker()
 
 createRoot(document.getElementById('root')).render(

@@ -6,8 +6,8 @@ import {
   signInWithPopup,
 } from 'firebase/auth'
 import { addDoc, collection, Timestamp } from 'firebase/firestore'
-import { LoaderCircle, WifiOff } from 'lucide-react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { LoaderCircle, QrCode, WifiOff } from 'lucide-react'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import BackgroundColorControl from '../components/BackgroundColorControl'
 import BrandMark from '../components/BrandMark'
 import MadeByFooter from '../components/MadeByFooter'
@@ -391,6 +391,14 @@ export default function LoginPage() {
             <GoogleIcon />
             Sign in with Google
           </button>
+
+          <Link
+            to="/receiver"
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-violet-200 bg-violet-50/70 px-4 py-3 text-sm font-bold text-violet-700 transition hover:bg-violet-100 dark:border-violet-500/20 dark:bg-violet-500/10 dark:text-violet-200 dark:hover:bg-violet-500/15"
+          >
+            <QrCode className="h-4 w-4" />
+            Receive an image offline
+          </Link>
 
           <div className="mt-6 flex justify-center">
             <button

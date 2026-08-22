@@ -13,7 +13,7 @@ The connection indicator treats `navigator.onLine` only as an early hint. It ver
 - Reading previously synchronized projects, Launchpad shortcuts, notes, task groups, calendar entries, document metadata, custom editors, and account limits.
 - Switching classic/city design, dark/light appearance, searching, sorting, and filtering cached records.
 - Creating, editing, pinning, and deleting ordinary Firestore-backed records. These changes appear locally and wait for cloud confirmation after reconnection.
-- Starting an offline QR transfer for an image that was already cached by the separate local transfer feature and whose companion service is running on the same LAN.
+- Starting an optical QR transfer for an image already cached in this browser. The animated frames contain the bytes, so no companion service or network is required.
 
 ## What still requires internet
 

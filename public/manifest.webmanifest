@@ -10,6 +10,21 @@
   "theme_color": "#7c3aed",
   "orientation": "any",
   "categories": ["productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Receive optical transfer",
+      "short_name": "Receive",
+      "description": "Receive an image from animated QR codes without a network.",
+      "url": "/receiver",
+      "icons": [
+        {
+          "src": "/pwa-icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
   "icons": [
     {
       "src": "/pwa-icon-192.png",
