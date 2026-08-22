@@ -3,6 +3,7 @@ import { ChevronDown, LogOut, Moon, Sun, X } from 'lucide-react'
 import { signOut } from 'firebase/auth'
 import { Link, useNavigate } from 'react-router-dom'
 import { auth } from '../firebase'
+import { clearCachedOfflineImages } from '../features/offline-transfer/offlineImageCache'
 import { toBackgroundRgba } from '../utils/lightBackground'
 import { clearGoogleDriveAccessToken } from '../utils/googleDriveAuth'
 import BackgroundColorControl from './BackgroundColorControl'
@@ -44,7 +45,16 @@ export default function Header({
 
   async function handleLogout() {
     try {
-      clearGoogleDriveAccessToken(auth.currentUser?.uid)
+      const uid = auth.currentUser?.uid
+      clearGoogleDriveAccessToken(uid)
+      if (uid) {
+        await clearCachedOfflineImages(uid).catch(() => {
+          addToast?.(
+            'Browser storage could not confirm offline-image cleanup.',
+            'info',
+          )
+        })
+      }
       await signOut(auth)
       setIsOpen(false)
       navigate('/login', { replace: true })

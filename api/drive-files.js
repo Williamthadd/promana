@@ -17,6 +17,7 @@ const ALLOWED_EXTENSIONS = new Set([
   'jpg',
   'jpeg',
   'gif',
+  'webp',
 ])
 const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
@@ -26,6 +27,7 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/png',
   'image/jpeg',
   'image/gif',
+  'image/webp',
 ])
 
 

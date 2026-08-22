@@ -5,10 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "offline-transfer": "node scripts/offline-transfer-service.mjs",
     "prebuild": "npm run security:dependencies",
     "build": "vite build",
     "lint": "eslint .",
     "security:dependencies": "node scripts/check-dependency-denylist.mjs",
+    "test": "npm run security:dependencies && npm run test:offline-transfer",
+    "test:offline-transfer": "node --test --test-isolation=none tests/offline-transfer-security.test.js tests/offline-transfer-http.test.js",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -18,6 +21,7 @@
     "firebase": "^12.11.0",
     "lucide-react": "^0.577.0",
     "motion": "^12.42.2",
+    "qrcode.react": "4.2.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.1"

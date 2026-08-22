@@ -9,6 +9,7 @@ export const DOCUMENT_FILE_EXTENSIONS = [
   'jpg',
   'jpeg',
   'gif',
+  'webp',
 ]
 
 export const DOCUMENT_FILE_ACCEPT = DOCUMENT_FILE_EXTENSIONS.map(
@@ -24,6 +25,7 @@ const MIME_TYPE_BY_EXTENSION = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   gif: 'image/gif',
+  webp: 'image/webp',
 }
 
 const LABEL_BY_EXTENSION = {
@@ -35,6 +37,7 @@ const LABEL_BY_EXTENSION = {
   jpg: 'JPG image',
   jpeg: 'JPEG image',
   gif: 'GIF image',
+  webp: 'WebP image',
 }
 
 export function getDocumentExtension(fileName) {
@@ -47,7 +50,7 @@ export function getDocumentExtension(fileName) {
 }
 
 export function getDocumentKind(extension) {
-  return ['png', 'jpg', 'jpeg', 'gif'].includes(extension)
+  return ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(extension)
     ? 'image'
     : 'document'
 }
@@ -86,7 +89,7 @@ export function getDocumentValidationError(file) {
   }
 
   if (!DOCUMENT_FILE_EXTENSIONS.includes(getDocumentExtension(file.name))) {
-    return 'Use PDF, DOCX, XLSX, CSV, PNG, JPG, JPEG, or GIF files only.'
+    return 'Use PDF, DOCX, XLSX, CSV, PNG, JPG, JPEG, GIF, or WEBP files only.'
   }
 
   if (file.size <= 0) {

@@ -19,7 +19,8 @@ Instead of navigating directories or digging through browser bookmarks, ProMana 
 
 ### 📝 Notes, Docs & Images Workspace
 * **Code Snippets**: Save reusable boilerplate, SQL scripts, shell commands, and configs with language labels.
-* **Document Shelf**: Store and preview PDF, DOCX, XLSX, CSV, PNG, JPG, JPEG, and GIF files.
+* **Document Shelf**: Store and preview PDF, DOCX, XLSX, CSV, PNG, JPG, JPEG, GIF, and WebP files.
+* **Offline QR Image Download**: Send a cached image directly to an Android phone over the same Wi-Fi or hotspot using a one-time local QR transfer.
 * **Clipboard Capture**: Paste screenshots directly into the upload area with `Ctrl+V` or `Cmd+V`.
 
 ### 📋 Tasks Workspace
@@ -48,7 +49,7 @@ Instead of navigating directories or digging through browser bookmarks, ProMana 
 ## 💻 Getting Started Locally
 
 ### 1. Prerequisites
-Ensure you have **Node.js (v18+)** and **npm** installed.
+Ensure you have **Node.js (v20.19+ or v22.12+)** and **npm** installed.
 
 ### 2. Install Dependencies
 Clone the repository and install packages:
@@ -78,3 +79,15 @@ npm run dev
 ```
 Open **`http://localhost:3000`** in your browser to access the dashboard.
 Use the dummy credentials `user@gmail.com` with password `password` to sign in.
+
+### 6. Offline QR Image Download
+
+The image transfer needs a small local Node.js companion because a browser tab cannot listen for an Android phone by itself. In a second terminal, run:
+
+```bash
+npm run offline-transfer
+```
+
+Keep ProMana open at `http://localhost:3000`, click `Check Offline QR service`, then use the QR action on an image in Docs & Images. Uploaded/cached images can transfer with WAN access disconnected; an older uncached Drive image needs one online preparation first. Offline copies expire after 30 days and are cleared on logout. The actual phone download stays on the local network and has no cloud fallback.
+
+See [Offline QR Image Download](docs/OFFLINE_QR_DOWNLOAD.md) for the architecture, security model, firewall setup, limitations, and exact Windows/macOS-to-Android acceptance steps.

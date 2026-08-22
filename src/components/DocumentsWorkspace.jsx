@@ -6,10 +6,14 @@ import {
   Folder,
   FilePlus2,
   LoaderCircle,
+  Radio,
+  RefreshCw,
   Save,
   Search,
   SearchX,
   ShieldCheck,
+  Trash2,
+  WifiOff,
 } from 'lucide-react'
 import { auth, db } from '../firebase'
 import {
@@ -28,6 +32,14 @@ import DocumentCard from './DocumentCard'
 import DocumentPreviewModal from './DocumentPreviewModal'
 import DocumentSkeletonCard from './DocumentSkeletonCard'
 import DocumentUploadModal from './DocumentUploadModal'
+import OfflineTransferModal from '../features/offline-transfer/OfflineTransferModal'
+import {
+  cacheOfflineImage,
+  clearCachedOfflineImages,
+  getCachedOfflineImage,
+  removeCachedOfflineImage,
+} from '../features/offline-transfer/offlineImageCache'
+import { checkOfflineTransferAvailability } from '../features/offline-transfer/offlineTransferClient'
 
 const DRIVE_UPLOAD_CHUNK_SIZE = 2 * 1024 * 1024
 
@@ -302,6 +314,18 @@ export default function DocumentsWorkspace({
   const [previewDocument, setPreviewDocument] = useState(null)
   const [deletingDocumentId, setDeletingDocumentId] = useState('')
   const [copyingDocumentId, setCopyingDocumentId] = useState('')
+  const [preparingOfflineDocumentId, setPreparingOfflineDocumentId] =
+    useState('')
+  const [offlineTransferRequest, setOfflineTransferRequest] = useState(null)
+  const [offlineTransferService, setOfflineTransferService] = useState({
+    checking: false,
+    checked: false,
+    available: false,
+    networks: [],
+    preferredAddress: '',
+    error: '',
+  })
+  const [isClearingOfflineCache, setIsClearingOfflineCache] = useState(false)
   const [driveAccessToken, setDriveAccessToken] = useState('')
   const [isCheckingDriveConnection, setIsCheckingDriveConnection] = useState(
     () => Boolean(uid),
@@ -615,8 +639,38 @@ export default function DocumentsWorkspace({
         lastUpdatedAt: timestamp,
       })
 
+      let cachedForOffline = false
+
+      if (getDocumentKind(extension) === 'image') {
+        try {
+          await cacheOfflineImage({
+            uid,
+            driveFileId,
+            blob: file,
+            filename: file.name,
+            mimeType: getDocumentMimeType(file),
+          })
+          cachedForOffline = true
+        } catch {
+          // The Drive upload remains successful if browser storage is disabled
+          // or its local quota is full.
+        }
+      }
+
       setUploadProgress(100)
-      addToast(`${title} saved to Google Drive.`, 'success')
+      addToast(
+        cachedForOffline
+          ? `${title} saved to Google Drive and cached for offline QR.`
+          : `${title} saved to Google Drive.`,
+        'success',
+      )
+
+      if (getDocumentKind(extension) === 'image' && !cachedForOffline) {
+        addToast(
+          'This browser could not keep an offline copy. You can still prepare it from Drive later.',
+          'info',
+        )
+      }
       return true
     } catch (uploadError) {
       if (uploadError?.status === 401) {
@@ -686,6 +740,140 @@ export default function DocumentsWorkspace({
     }
   }
 
+  async function handleRefreshOfflineTransferService({ notify = true } = {}) {
+    setOfflineTransferService((currentService) => ({
+      ...currentService,
+      checking: true,
+    }))
+    const service = await checkOfflineTransferAvailability()
+    setOfflineTransferService({ ...service, checking: false, checked: true })
+
+    if (notify) {
+      addToast(
+        service.available
+          ? 'ProMana Local Transfer Service is ready.'
+          : service.error,
+        service.available ? 'success' : 'info',
+      )
+    }
+
+    return service
+  }
+
+  async function handleClearOfflineCache() {
+    if (!uid || isClearingOfflineCache) return
+
+    setIsClearingOfflineCache(true)
+    try {
+      await clearCachedOfflineImages(uid)
+      addToast('Offline image copies cleared from this browser.', 'success')
+    } catch {
+      addToast('Browser storage could not clear offline image copies.', 'error')
+    } finally {
+      setIsClearingOfflineCache(false)
+    }
+  }
+
+  async function handleOfflineTransfer(document) {
+    if (!uid || auth.currentUser?.uid !== uid) {
+      addToast('You need to be signed in to prepare an offline image.', 'error')
+      return
+    }
+
+    if (document.kind !== 'image' || !document.driveFileId) {
+      addToast('Offline QR is available for stored images only.', 'error')
+      return
+    }
+
+    setPreparingOfflineDocumentId(document.id)
+
+    try {
+      const service = await handleRefreshOfflineTransferService({
+        notify: false,
+      })
+
+      if (!service.available) {
+        throw new Error(service.error)
+      }
+
+      let cachedImage = null
+
+      try {
+        cachedImage = await getCachedOfflineImage(uid, document.driveFileId)
+      } catch {
+        // Private browsing and restrictive storage policies may disable
+        // IndexedDB; Drive remains available as the first-preparation source.
+      }
+
+      let imageBlob = cachedImage?.blob
+      let source = 'cache'
+
+      if (!imageBlob) {
+        source = 'drive'
+
+        if (!driveAccessToken) {
+          throw new Error(
+            'This image is not cached on this computer yet. Reconnect Google Drive while online once, then prepare Offline QR again.',
+          )
+        }
+
+        try {
+          imageBlob = await requestDriveImageBlob(
+            driveAccessToken,
+            document.driveFileId,
+          )
+        } catch (driveImageError) {
+          if (driveImageError?.status === 401) {
+            throw driveImageError
+          }
+
+          const preparationError = new Error(
+            'This image is not cached on this computer yet. Its first preparation requires an internet connection to ProMana and Google Drive; reconnect and try once more.',
+          )
+          preparationError.status = driveImageError?.status
+          throw preparationError
+        }
+
+        try {
+          await cacheOfflineImage({
+            uid,
+            driveFileId: document.driveFileId,
+            blob: imageBlob,
+            filename:
+              document.originalName ||
+              `${document.title || 'promana-image'}.${document.extension || 'png'}`,
+            mimeType: imageBlob.type || document.mimeType,
+          })
+        } catch {
+          addToast(
+            'The image is ready now, but this browser could not keep an offline copy for next time.',
+            'info',
+          )
+        }
+      }
+
+      setOfflineTransferRequest({
+        fileRecord: document,
+        imageBlob,
+        service,
+        source,
+      })
+    } catch (offlineError) {
+      if (offlineError?.status === 401) {
+        clearGoogleDriveAccessToken(uid)
+        setDriveAccessToken('')
+      }
+
+      addToast(
+        offlineError?.message ||
+          'The image could not be prepared for offline transfer.',
+        'error',
+      )
+    } finally {
+      setPreparingOfflineDocumentId('')
+    }
+  }
+
   async function handleDelete(document) {
     if (!uid || auth.currentUser?.uid !== uid) {
       addToast('You need to be signed in to remove files.', 'error')
@@ -709,6 +897,18 @@ export default function DocumentsWorkspace({
       }
 
       await deleteDoc(doc(db, 'users', uid, 'documents', document.id))
+
+      if (document.driveFileId) {
+        try {
+          await removeCachedOfflineImage(uid, document.driveFileId)
+        } catch {
+          addToast(
+            'The file was removed, but browser storage could not confirm offline-cache cleanup.',
+            'info',
+          )
+        }
+      }
+
       addToast(`${document.title || document.originalName} removed.`, 'success')
     } catch (deleteError) {
       if (deleteError?.status === 401) {
@@ -770,6 +970,55 @@ export default function DocumentsWorkspace({
                           : 'Google Drive disconnected. Reconnect to upload files.'}
               </span>
             </div>
+            {documents.some((document) => document.kind === 'image') ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={offlineTransferService.checking}
+                  onClick={() => void handleRefreshOfflineTransferService()}
+                  title="Check the ProMana Local Transfer Service again"
+                  className={
+                    offlineTransferService.available
+                      ? 'flex w-fit items-center gap-2 rounded-full bg-violet-50 px-3 py-1.5 text-left text-xs font-bold text-violet-700 transition hover:bg-violet-100 disabled:cursor-wait dark:bg-violet-500/10 dark:text-violet-200 dark:hover:bg-violet-500/15'
+                      : 'flex w-fit items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-left text-xs font-bold text-amber-700 transition hover:bg-amber-100 disabled:cursor-wait dark:bg-amber-500/10 dark:text-amber-200 dark:hover:bg-amber-500/15'
+                  }
+                >
+                  {offlineTransferService.checking ? (
+                    <LoaderCircle className="h-4 w-4 shrink-0 animate-spin" />
+                  ) : offlineTransferService.available ? (
+                    <Radio className="h-4 w-4 shrink-0" />
+                  ) : (
+                    <WifiOff className="h-4 w-4 shrink-0" />
+                  )}
+                  <span>
+                    {offlineTransferService.checking
+                      ? 'Checking Offline QR service…'
+                      : offlineTransferService.available
+                        ? 'Offline QR service ready'
+                        : offlineTransferService.checked
+                          ? 'Offline QR service unavailable'
+                          : 'Check Offline QR service'}
+                  </span>
+                  {!offlineTransferService.checking ? (
+                    <RefreshCw className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  disabled={isClearingOfflineCache}
+                  onClick={() => void handleClearOfflineCache()}
+                  title="Remove this account's cached offline image copies from this browser"
+                  className="flex w-fit items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-left text-xs font-bold text-slate-600 transition hover:bg-slate-200 disabled:cursor-wait dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+                >
+                  {isClearingOfflineCache ? (
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5" />
+                  )}
+                  Clear offline copies
+                </button>
+              </div>
+            ) : null}
             <div className="mt-4 max-w-2xl">
               <label
                 htmlFor="google-drive-folder"
@@ -952,9 +1201,29 @@ export default function DocumentsWorkspace({
               document={document}
               onPreview={setPreviewDocument}
               onCopyImage={handleCopyImage}
+              onOfflineTransfer={handleOfflineTransfer}
               onDelete={handleDelete}
               isCopying={copyingDocumentId === document.id}
+              isPreparingOffline={
+                preparingOfflineDocumentId === document.id
+              }
               isDeleting={deletingDocumentId === document.id}
+              offlineTransferAvailable={
+                offlineTransferService.available &&
+                !offlineTransferService.checking
+              }
+              offlineTransferDisabled={
+                offlineTransferService.checked &&
+                !offlineTransferService.available
+              }
+              offlineTransferUnavailableReason={
+                offlineTransferService.checking
+                  ? 'Checking the ProMana Local Transfer Service…'
+                  : offlineTransferService.checked
+                    ? offlineTransferService.error ||
+                      'Start the ProMana Local Transfer Service and allow browser Local Network Access.'
+                    : 'Click to check the ProMana Local Transfer Service and create an offline QR.'
+              }
             />
           ))}
         </section>
@@ -976,6 +1245,13 @@ export default function DocumentsWorkspace({
         open={Boolean(previewDocument)}
         document={previewDocument}
         onClose={() => setPreviewDocument(null)}
+      />
+
+      <OfflineTransferModal
+        open={Boolean(offlineTransferRequest)}
+        request={offlineTransferRequest}
+        onNotice={addToast}
+        onClose={() => setOfflineTransferRequest(null)}
       />
     </div>
   )

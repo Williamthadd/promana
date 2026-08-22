@@ -21,6 +21,7 @@ const PASTED_IMAGE_EXTENSIONS = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/gif': 'gif',
+  'image/webp': 'webp',
 }
 
 function normalizePastedImage(file) {
@@ -216,7 +217,7 @@ function DocumentUploadForm({
                 </p>
                 <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white/80 px-3 py-1.5 text-xs font-bold text-blue-700 dark:border-blue-500/20 dark:bg-slate-950/60 dark:text-blue-200">
                   <ClipboardPaste className="h-3.5 w-3.5" />
-                  PDF, DOCX, XLSX, CSV, PNG, JPG, JPEG, GIF
+                  PDF, DOCX, XLSX, CSV, PNG, JPG, JPEG, GIF, WEBP
                 </div>
                 <p className="mt-3 text-xs font-medium text-slate-400">
                   Maximum file size: 25 MB
