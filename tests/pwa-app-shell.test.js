@@ -25,7 +25,7 @@ test('PWA manifest defines a scoped standalone application', async () => {
 })
 
 test('optical receiver is public and its decoder has no runtime network dependency', async () => {
-  const [appSource, workerSource, cssSource] = await Promise.all([
+  const [appSource, workerSource, cssSource, receiverSource] = await Promise.all([
     readFile(new URL('../src/App.jsx', import.meta.url), 'utf8'),
     readFile(
       new URL(
@@ -35,6 +35,13 @@ test('optical receiver is public and its decoder has no runtime network dependen
       'utf8',
     ),
     readFile(new URL('../src/index.css', import.meta.url), 'utf8'),
+    readFile(
+      new URL(
+        '../src/features/optical-transfer/receiver/OfflineReceiver.jsx',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
   ])
 
   assert.match(appSource, /path="\/receiver"/)
@@ -42,6 +49,11 @@ test('optical receiver is public and its decoder has no runtime network dependen
   assert.doesNotMatch(workerSource, /https?:\/\//i)
   assert.doesNotMatch(workerSource, /\bfetch\s*\(/)
   assert.doesNotMatch(cssSource, /@import\s+url\(/i)
+  assert.match(receiverSource, /darkMode \? 'bg-mesh-dark text-white'/)
+  assert.doesNotMatch(
+    receiverSource,
+    /bg-mesh-light[^\n]+dark:bg-mesh-dark/,
+  )
 })
 
 test('precache list includes emitted app assets but excludes source maps', () => {

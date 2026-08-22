@@ -9,11 +9,13 @@ import {
   Image as ImageIcon,
   Info,
   LoaderCircle,
+  Moon,
   PackageCheck,
   RefreshCw,
   ScanLine,
   ShieldCheck,
   Smartphone,
+  Sun,
   WifiOff,
   X,
 } from 'lucide-react'
@@ -273,8 +275,32 @@ export default function OfflineReceiver({ onClose, onComplete, className = '' })
   const [error, setError] = useState('')
   const [scanNotice, setScanNotice] = useState('')
   const [result, setResult] = useState(null)
+  const [darkMode, setDarkMode] = useState(
+    () => window.localStorage.getItem('proman-theme') === 'dark',
+  )
   const isStandalone = useStandaloneStatus()
   const onlineHint = useOnlineHint()
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode)
+    document.documentElement.style.colorScheme = darkMode ? 'dark' : 'light'
+    document.body.style.backgroundColor = darkMode ? '#070a13' : '#f8fafc'
+    window.localStorage.setItem('proman-theme', darkMode ? 'dark' : 'light')
+
+    const themeColor = document.querySelector('meta[name="theme-color"]')
+    themeColor?.setAttribute('content', darkMode ? '#020617' : '#eff6ff')
+  }, [darkMode])
+
+  useEffect(() => {
+    const handleStorage = (event) => {
+      if (event.key === 'proman-theme') {
+        setDarkMode(event.newValue === 'dark')
+      }
+    }
+
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [])
 
   const releasePreview = useCallback(() => {
     if (previewUrlRef.current) {
@@ -501,7 +527,9 @@ export default function OfflineReceiver({ onClose, onComplete, className = '' })
 
   return (
     <main
-      className={`min-h-dvh bg-mesh-light px-3 py-4 text-slate-950 dark:bg-mesh-dark dark:text-white sm:px-5 sm:py-7 ${className}`}
+      className={`min-h-dvh px-3 py-4 transition-colors duration-300 sm:px-5 sm:py-7 ${
+        darkMode ? 'bg-mesh-dark text-white' : 'bg-mesh-light text-slate-950'
+      } ${className}`}
     >
       <div className="mx-auto w-full max-w-5xl">
         <header className="mb-5 flex items-start justify-between gap-4">
@@ -519,19 +547,35 @@ export default function OfflineReceiver({ onClose, onComplete, className = '' })
               cloud transfer is used.
             </p>
           </div>
-          {onClose ? (
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              onClick={() => {
-                scanner.stop()
-                onClose()
-              }}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/50 bg-white/70 text-slate-600 transition hover:bg-white dark:border-white/10 dark:bg-slate-950/60 dark:text-slate-300"
-              aria-label="Close offline receiver"
+              onClick={() => setDarkMode((current) => !current)}
+              className="grid h-11 w-11 place-items-center rounded-full border border-white/60 bg-white/80 text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-slate-900/80 dark:text-amber-200 dark:hover:bg-slate-900"
+              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-pressed={darkMode}
             >
-              <X className="h-5 w-5" />
+              {darkMode ? (
+                <Sun className="h-5 w-5" />
+              ) : (
+                <Moon className="h-5 w-5" />
+              )}
             </button>
-          ) : null}
+            {onClose ? (
+              <button
+                type="button"
+                onClick={() => {
+                  scanner.stop()
+                  onClose()
+                }}
+                className="grid h-11 w-11 place-items-center rounded-full border border-white/50 bg-white/70 text-slate-600 transition hover:bg-white dark:border-white/10 dark:bg-slate-950/60 dark:text-slate-300"
+                aria-label="Close offline receiver"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            ) : null}
+          </div>
         </header>
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
