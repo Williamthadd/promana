@@ -21,6 +21,7 @@ import NoteCard from './NoteCard'
 import TaskGroupCard from './TaskGroupCard'
 import LaunchpadCard from './LaunchpadCard'
 import useAiDailyUsage from '../hooks/useAiDailyUsage'
+import { filterNotesForAi } from '../utils/aiWorkspaceData'
 
 // Daily credits limit definition
 const DAILY_LIMIT = 15
@@ -123,6 +124,7 @@ export default function AiWorkspace({
         : [],
     [chatStorageKey, messagesByStorageKey],
   )
+  const aiVisibleNotes = useMemo(() => filterNotesForAi(notes), [notes])
   const setMessages = (updater) => {
     if (!chatStorageKey) {
       return
@@ -291,7 +293,7 @@ export default function AiWorkspace({
           workspaceData: {
             projects,
             launchpadItems,
-            notes,
+            notes: aiVisibleNotes,
             taskGroups,
             calendarEntries,
           }
@@ -685,7 +687,7 @@ export default function AiWorkspace({
                               }
 
                               if (result.type === 'note') {
-                                const nt = notes.find(n => n.id === result.id)
+                                const nt = aiVisibleNotes.find(n => n.id === result.id)
                                 if (!nt) return null
                                 return (
                                   <div key={rIdx} className={`w-full max-w-md ${separatorClass}`}>

@@ -1,4 +1,4 @@
-# ProMana Optical QR Image Transfer
+feat# ProMana Optical QR Image Transfer
 
 ProMana can move a JPEG, PNG, WebP, or GIF image from a computer display to a
 phone camera. The animated QR frames contain the file bytes themselves. The

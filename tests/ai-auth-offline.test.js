@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
+import { filterNotesForAi } from '../src/utils/aiWorkspaceData.js'
 
 const aiWorkspaceSource = await readFile(
   new URL('../src/components/AiWorkspace.jsx', import.meta.url),
@@ -12,6 +13,10 @@ const aiUsageSource = await readFile(
 )
 const loginSource = await readFile(
   new URL('../src/pages/LoginPage.jsx', import.meta.url),
+  'utf8',
+)
+const geminiApiSource = await readFile(
+  new URL('../api/gemini.js', import.meta.url),
   'utf8',
 )
 
@@ -49,6 +54,64 @@ test('AI chat history is scoped to the authenticated Firebase UID', () => {
   assert.match(
     aiWorkspaceSource,
     /localStorage\.setItem\(chatStorageKey, JSON\.stringify\(messages\)\)/,
+  )
+})
+
+test('Ask AI excludes hidden notes in both the browser and Gemini API', () => {
+  const hiddenSecret = 'PRIVATE_NOTE_CONTENT_MUST_NOT_REACH_AI'
+  const filteredNotes = filterNotesForAi([
+    {
+      id: 'visible-note',
+      visibility: 'visible',
+      content: 'Shareable content',
+    },
+    {
+      id: 'legacy-note',
+      content: 'Legacy notes without visibility remain available',
+    },
+    {
+      id: 'hidden-note',
+      visibility: 'hidden',
+      content: hiddenSecret,
+    },
+    {
+      id: 'normalized-hidden-note',
+      visibility: ' HIDDEN ',
+      content: hiddenSecret,
+    },
+  ])
+
+  assert.deepEqual(
+    filteredNotes.map((note) => note.id),
+    ['visible-note', 'legacy-note'],
+  )
+  assert.doesNotMatch(JSON.stringify(filteredNotes), new RegExp(hiddenSecret))
+  assert.deepEqual(filterNotesForAi(null), [])
+
+  assert.match(
+    aiWorkspaceSource,
+    /const aiVisibleNotes = useMemo\(\(\) => filterNotesForAi\(notes\), \[notes\]\)/,
+    'the browser must derive an AI-safe notes collection',
+  )
+  assert.match(
+    aiWorkspaceSource,
+    /notes:\s*aiVisibleNotes/,
+    'the browser must remove hidden notes before sending the request',
+  )
+  assert.match(
+    aiWorkspaceSource,
+    /aiVisibleNotes\.find\(n => n\.id === result\.id\)/,
+    'AI result cards must never resolve against the full notes collection',
+  )
+  assert.match(
+    geminiApiSource,
+    /notes:\s*filterNotesForAi\(workspaceData\?\.notes\)\.map/,
+    'the API must remove hidden notes before building Gemini context',
+  )
+  assert.match(
+    geminiApiSource,
+    /\['note',\s*new Set\(contextSummary\.notes\.map\(n => n\.id\)\)\]/,
+    'note results must be restricted to IDs from the filtered AI context',
   )
 })
 

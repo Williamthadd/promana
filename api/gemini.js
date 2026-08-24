@@ -1,6 +1,7 @@
 /* global process */
 import { GoogleGenAI } from '@google/genai'
 import { sendJson } from '../server/apiResponse.js'
+import { filterNotesForAi } from '../src/utils/aiWorkspaceData.js'
 
 let aiClient = null
 
@@ -118,7 +119,7 @@ export default async function handler(request, response) {
       url: l.url,
       category: l.category,
     })),
-    notes: (workspaceData?.notes || []).map(n => ({
+    notes: filterNotesForAi(workspaceData?.notes).map(n => ({
       id: n.id,
       title: n.title,
       content: n.content,
@@ -271,18 +272,17 @@ ${JSON.stringify(contextSummary, null, 2)}
     // ─── Layer 3: Post-response safety check ───
     // If the AI somehow generated results referencing IDs not in the user's workspace,
     // strip them out to prevent cross-account data leakage
-    const validIds = new Set([
-      ...(contextSummary.projects || []).map(p => p.id),
-      ...(contextSummary.launchpad || []).map(l => l.id),
-      ...(contextSummary.notes || []).map(n => n.id),
-      ...(contextSummary.taskGroups || []).map(tg => tg.id),
-      ...(contextSummary.calendarEntries || []).map(c => c.id),
+    const validIdsByResultType = new Map([
+      ['project', new Set(contextSummary.projects.map(p => p.id))],
+      ['launchpad', new Set(contextSummary.launchpad.map(l => l.id))],
+      ['note', new Set(contextSummary.notes.map(n => n.id))],
+      ['task_group', new Set(contextSummary.taskGroups.map(tg => tg.id))],
     ])
 
     if (Array.isArray(parsed.results)) {
       parsed.results = parsed.results.filter(r => {
         if (r.type === 'calendar_date') return true // dates don't have a single ID
-        return r.id && validIds.has(r.id)
+        return r.id && validIdsByResultType.get(r.type)?.has(r.id)
       })
     }
 
