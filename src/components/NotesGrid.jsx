@@ -2,6 +2,7 @@ import { useMemo } from "react"
 import { SearchX } from "lucide-react"
 import NoteCard from "./NoteCard"
 import NoteSkeletonCard from "./NoteSkeletonCard"
+import { noteTitleMatchesSearch } from "../utils/noteSearch"
 
 export default function NotesGrid({
   notes,
@@ -16,7 +17,6 @@ export default function NotesGrid({
   addToast,
 }) {
   const visibleNotes = useMemo(() => {
-    const normalizedSearch = searchQuery.trim().toLowerCase()
     const normalizedType = filterType.trim().toLowerCase()
     const normalizedTag = filterTag.trim().toLowerCase()
 
@@ -31,12 +31,7 @@ export default function NotesGrid({
         normalizedTag === "all" ||
         (note.tags ?? []).some((tag) => tag.toLowerCase() === normalizedTag)
 
-      const matchesSearch =
-        !normalizedSearch ||
-        note.title?.toLowerCase().includes(normalizedSearch) ||
-        note.content?.toLowerCase().includes(normalizedSearch) ||
-        note.type?.toLowerCase().includes(normalizedSearch) ||
-        (note.tags ?? []).some((tag) => tag.toLowerCase().includes(normalizedSearch))
+      const matchesSearch = noteTitleMatchesSearch(note, searchQuery)
 
       return matchesType && matchesTag && matchesSearch
     })

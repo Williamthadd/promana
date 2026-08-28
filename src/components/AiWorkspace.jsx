@@ -435,11 +435,14 @@ export default function AiWorkspace({
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white">ProMana Assistant</h2>
-              <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">Powered by Gemini 2.5</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">Powered by Gemini 3.5 Flash</p>
             </div>
           </div>
           <p className="mt-4 text-xs leading-5 text-slate-600 dark:text-slate-300">
             Ask anything about your ProMana workspace! It searches, summarizes, and extracts live details about your Projects, Notes, Tasks, Launchpad, and Calendar automatically.
+          </p>
+          <p className="mt-4 text-xs leading-5 text-slate-600 dark:text-slate-300">
+            This AI is <b>secured</b> by a daily API credit limit, firewall, and privacy controls.
           </p>
         </section>
 

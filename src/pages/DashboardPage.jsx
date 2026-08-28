@@ -1927,7 +1927,7 @@ export default function DashboardPage() {
                 value={notesSearch}
                 onChange={(event) => setNotesSearch(event.target.value)}
                 inputRef={notesSearchInputRef}
-                placeholder="Search notes, snippets, or tags...."
+                placeholder="Search note titles..."
               />
 
               <div className="grid gap-4 md:grid-cols-2">

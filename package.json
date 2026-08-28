@@ -9,10 +9,11 @@
     "build": "vite build",
     "lint": "eslint .",
     "security:dependencies": "node scripts/check-dependency-denylist.mjs",
-    "test": "npm run security:dependencies && npm run test:optical-transfer && npm run test:pwa && npm run test:offline-mode && npm run test:ai-auth-offline",
+    "test": "npm run security:dependencies && npm run test:optical-transfer && npm run test:pwa && npm run test:offline-mode && npm run test:ai-auth-offline && npm run test:notes-search",
     "test:ai-auth-offline": "node --test --test-isolation=none tests/ai-auth-offline.test.js",
     "test:optical-transfer": "node --test --test-isolation=none tests/optical-transfer-protocol.test.js",
     "test:offline-mode": "node --test --test-isolation=none tests/offline-mode.test.js",
+    "test:notes-search": "node --test --test-isolation=none tests/notes-search.test.js",
     "test:pwa": "node --test --test-isolation=none tests/pwa-app-shell.test.js",
     "preview": "vite preview"
   },
