@@ -1,6 +1,7 @@
 /* global Buffer, process */
 
 import { sendJson } from '../server/apiResponse.js'
+import { checkRateLimit } from '../server/rateLimit.js'
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024
 const IMAGE_DOWNLOAD_CHUNK_SIZE = 2 * 1024 * 1024
@@ -42,13 +43,13 @@ function getEnvironmentValue(name, fallback = '') {
   return String(process.env[name] ?? fallback).trim()
 }
 
-function getFileExtension(fileName) {
+export function getFileExtension(fileName) {
   return String(fileName ?? '')
     .toLowerCase()
     .match(/\.([a-z0-9]+)$/)?.[1] ?? ''
 }
 
-function sanitizeFileName(fileName) {
+export function sanitizeFileName(fileName) {
   return (
     String(fileName ?? 'file')
       .replace(/[\\/]+/g, '-')
@@ -63,7 +64,7 @@ function sanitizeFileName(fileName) {
   )
 }
 
-function isValidIdentifier(value) {
+export function isValidIdentifier(value) {
   return /^[a-zA-Z0-9_-]{10,128}$/.test(String(value ?? ''))
 }
 
@@ -671,6 +672,29 @@ export default async function handler(request, response) {
   try {
     const user = await verifyFirebaseUser(request)
     const accessToken = getGoogleDriveAccessToken(request)
+
+    // Abuse control (best-effort per instance): chunk uploads legitimately
+    // burst (one call per ~2 MB), so the chunk bucket is generous while
+    // session-creation/management calls are tighter.
+    const chunkLimit = checkRateLimit({
+      key: `drive-chunk:${user.uid}`,
+      limit: 300,
+      windowMs: 10 * 60 * 1000,
+    })
+    if (!chunkLimit.allowed) {
+      response.setHeader('Retry-After', String(Math.ceil(chunkLimit.retryAfterMs / 1000)))
+      throw new ApiError(429, 'Too many Drive requests. Please slow down.')
+    }
+    const mgmtLimit = checkRateLimit({
+      key: `drive-mgmt:${user.uid}`,
+      limit: 120,
+      windowMs: 10 * 60 * 1000,
+    })
+    if (!mgmtLimit.allowed) {
+      response.setHeader('Retry-After', String(Math.ceil(mgmtLimit.retryAfterMs / 1000)))
+      throw new ApiError(429, 'Too many Drive requests. Please slow down.')
+    }
+
     await verifyGoogleDriveUser(accessToken, user)
 
     if (request.method === 'POST') {

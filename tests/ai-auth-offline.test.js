@@ -105,7 +105,7 @@ test('Ask AI excludes hidden notes in both the browser and Gemini API', () => {
   )
   assert.match(
     geminiApiSource,
-    /notes:\s*filterNotesForAi\(workspaceData\?\.notes\)\.map/,
+    /filterNotesForAi\(source\.notes\)/,
     'the API must remove hidden notes before building Gemini context',
   )
   assert.match(

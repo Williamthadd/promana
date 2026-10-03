@@ -47,6 +47,31 @@ export function clearGoogleDriveAccessToken(uid) {
   }
 }
 
+// Remove EVERY cached Drive token for this browser tab. Tokens are
+// short-lived secrets: on logout or account change, other UIDs' tokens must
+// not linger in sessionStorage where a later script could read them.
+export function clearAllGoogleDriveAccessTokens() {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    const doomed = []
+
+    for (let index = 0; index < window.sessionStorage.length; index += 1) {
+      const key = window.sessionStorage.key(index)
+
+      if (typeof key === 'string' && key.startsWith(`${TOKEN_STORAGE_PREFIX}:`)) {
+        doomed.push(key)
+      }
+    }
+
+    doomed.forEach((key) => window.sessionStorage.removeItem(key))
+  } catch {
+    // Ignore storage restrictions during logout or token renewal.
+  }
+}
+
 export function createGoogleDriveProvider(parameters = {}) {
   const provider = new GoogleAuthProvider()
   provider.addScope(GOOGLE_DRIVE_SCOPE)

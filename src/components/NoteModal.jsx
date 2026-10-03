@@ -106,6 +106,7 @@ function NoteModalForm({ note, onClose, onSubmit, isSaving }) {
                 <input
                   type="text"
                   value={draft.title}
+                  maxLength={200}
                   onChange={(event) => updateDraft("title", event.target.value)}
                   placeholder="Optional, for example User seed query"
                   className="rounded-2xl border border-white/40 bg-white/80 px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-white/10 dark:bg-slate-950/80 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-400/20"

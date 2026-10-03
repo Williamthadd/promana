@@ -28,18 +28,49 @@ const BLOCKED_EDITOR_PROTOCOLS = new Set([
   'http',
   'https',
   'javascript',
+  'vbscript',
+  'blob',
+  'filesystem',
+  'about',
+  'ftp',
+  'ftps',
+  'ws',
+  'wss',
+  'tel',
+  'callto',
+  'sms',
+  'mailto',
+  'ssh',
+  'telnet',
+  'sftp',
+  'ldap',
+  'dict',
+  'gopher',
 ])
+
+const MAX_EDITOR_SCHEME_LENGTH = 64
+const MAX_EDITOR_PROTOCOL_LENGTH = 24
+export const MAX_EDITOR_NAME_LENGTH = 60
+const MAX_EDITOR_ID_LENGTH = 80
 
 export function normalizeEditorSchemePrefix(value) {
   const trimmedValue = String(value ?? '').trim()
 
-  if (!trimmedValue) {
+  if (!trimmedValue || trimmedValue.length > MAX_EDITOR_SCHEME_LENGTH) {
     return ''
   }
 
   if (/^[a-z][a-z0-9+.-]*$/i.test(trimmedValue)) {
     const protocol = trimmedValue.toLowerCase()
-    return BLOCKED_EDITOR_PROTOCOLS.has(protocol) ? '' : `${protocol}://file/`
+
+    if (
+      protocol.length > MAX_EDITOR_PROTOCOL_LENGTH ||
+      BLOCKED_EDITOR_PROTOCOLS.has(protocol)
+    ) {
+      return ''
+    }
+
+    return `${protocol}://file/`
   }
 
   const schemeMatch = trimmedValue.match(
@@ -52,7 +83,10 @@ export function normalizeEditorSchemePrefix(value) {
 
   const protocol = schemeMatch[1].toLowerCase()
 
-  if (BLOCKED_EDITOR_PROTOCOLS.has(protocol)) {
+  if (
+    protocol.length > MAX_EDITOR_PROTOCOL_LENGTH ||
+    BLOCKED_EDITOR_PROTOCOLS.has(protocol)
+  ) {
     return ''
   }
 
@@ -64,7 +98,11 @@ export function normalizeCustomEditor(editor, fallbackId = '') {
   const scheme = normalizeEditorSchemePrefix(editor?.scheme)
   const id = String(editor?.id ?? fallbackId).trim()
 
-  if (!id || !name || !scheme) {
+  if (
+    !id || id.length > MAX_EDITOR_ID_LENGTH ||
+    !name || name.length > MAX_EDITOR_NAME_LENGTH ||
+    !scheme
+  ) {
     return null
   }
 

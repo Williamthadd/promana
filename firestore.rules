@@ -1,8 +1,380 @@
 rules_version = '2';
+
+// ProMana Firestore security rules — deny by default, per-UID isolation.
+//
+// Model: every document lives under /users/{userId}/... and only the
+// Firebase-authenticated owner (request.auth.uid == userId) may read or
+// modify it. No collection trusts client-provided uid/email/role fields.
+// Field schemas and size caps are enforced so a compromised or buggy client
+// cannot store oversized payloads, escalate plan limits, or reset AI quotas
+// with arbitrary values.
+//
+// NOTE: true server-side AI quota enforcement (monotonic counters) requires
+// a privileged backend (Admin SDK / Cloud Function). These rules bound the
+// shape and range of usage documents but cannot replace that backend check.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+    // ---------- shared helpers ----------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Optional short text field: absent/null or a string within maxLength.
+    function textOk(data, key, maxLength) {
+      return data.get(key, null) == null
+        || (data.get(key, null) is string && data.get(key, '').size() <= maxLength);
+    }
+
+    // Required non-empty text field within maxLength.
+    function requiredText(data, key, maxLength) {
+      return data.get(key, null) is string
+        && data.get(key, '').size() > 0
+        && data.get(key, '').size() <= maxLength;
+    }
+
+    function boolOk(data, key) {
+      return data.get(key, null) == null || data.get(key, null) is bool;
+    }
+
+    function timestampOk(data, key) {
+      return data.get(key, null) == null || data.get(key, null) is timestamp;
+    }
+
+    // Optional string that must match a full-string RE2 pattern when present
+    // and non-empty.
+    function patternOk(data, key, pattern, maxLength) {
+      return data.get(key, null) == null
+        || data.get(key, '') == ''
+        || (data.get(key, null) is string
+          && data.get(key, '').size() <= maxLength
+          && data.get(key, '').matches(pattern));
+    }
+
+    function driveIdOk(data, key) {
+      return data.get(key, null) is string
+        && data.get(key, '').matches('^[A-Za-z0-9_-]{10,128}$');
+    }
+
+    function tagListOk(data, key) {
+      return data.get(key, null) == null
+        || (data.get(key, null) is list && data.get(key, []).size() <= 30);
+    }
+
+    function urlOk(data, key) {
+      return patternOk(data, key, '^https?://.+', 2000);
+    }
+
+    function httpsUrlOk(data, key) {
+      return patternOk(data, key, '^https://.+', 2000);
+    }
+
+    function isAllowedNoteType(value) {
+      return value == 'snippet' || value == 'query' || value == 'config'
+        || value == 'text' || value == 'reference';
+    }
+
+    function isAllowedNoteVisibility(value) {
+      return value == 'visible' || value == 'hidden';
+    }
+
+    function isAllowedDocumentExtension(value) {
+      return value == 'pdf' || value == 'docx' || value == 'xlsx'
+        || value == 'csv' || value == 'png' || value == 'jpg'
+        || value == 'jpeg' || value == 'gif' || value == 'webp';
+    }
+
+    function isAllowedDocumentMime(value) {
+      return value == 'application/pdf'
+        || value == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        || value == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        || value == 'text/csv' || value == 'image/png' || value == 'image/jpeg'
+        || value == 'image/gif' || value == 'image/webp';
+    }
+
+    // ---------- user root: no app data lives directly here ----------
+    match /users/{userId} {
+      allow read, write: if false;
+    }
+
+    // ---------- projects ----------
+    // `environments` has dynamic per-environment keys, so no hasOnly() here;
+    // every known scalar field is still type- and length-checked.
+    match /users/{userId}/projects/{projectId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && requiredText(request.resource.data, 'displayName', 200)
+        && validProject(request.resource.data);
+      allow update: if isOwner(userId) && validProject(request.resource.data);
+      allow delete: if isOwner(userId);
+    }
+
+    function validProject(data) {
+      return textOk(data, 'displayName', 200)
+        && textOk(data, 'absolutePath', 2000)
+        && urlOk(data, 'repositoryUrl')
+        && textOk(data, 'notes', 20000)
+        && textOk(data, 'primaryLanguage', 60)
+        && tagListOk(data, 'tags')
+        && (data.get('languagesList', null) == null
+          || (data.get('languagesList', null) is list
+            && data.get('languagesList', []).size() <= 20))
+        && boolOk(data, 'isPinned')
+        && boolOk(data, 'isBroken')
+        && (data.get('environments', null) == null
+          || (data.get('environments', null) is map
+            && data.get('environments', {}).keys().size() <= 20))
+        && timestampOk(data, 'createdAt')
+        && timestampOk(data, 'lastUpdatedAt')
+        && (data.get('lastOpenedAt', null) == null
+          || data.get('lastOpenedAt', null) is timestamp);
+    }
+
+    // ---------- launchpad shortcuts ----------
+    match /users/{userId}/launchpad/{itemId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && requiredText(request.resource.data, 'name', 200)
+        && validLaunchpadItem(request.resource.data, true);
+      allow update: if isOwner(userId)
+        && validLaunchpadItem(request.resource.data, false);
+      allow delete: if isOwner(userId);
+    }
+
+    function validLaunchpadItem(data, isCreate) {
+      return data.keys().hasOnly(['name', 'title', 'url', 'category', 'notes',
+        'isPinned', 'lastVisitedAt', 'order', 'createdAt', 'lastUpdatedAt'])
+        && textOk(data, 'name', 200)
+        && textOk(data, 'title', 200)
+        && (isCreate
+          ? (data.get('url', null) is string
+            && data.get('url', '').size() > 0
+            && data.get('url', '').size() <= 2000
+            && data.get('url', '').matches('^https?://.+'))
+          : urlOk(data, 'url'))
+        && textOk(data, 'category', 60)
+        && textOk(data, 'notes', 10000)
+        && boolOk(data, 'isPinned')
+        && (data.get('order', null) == null || data.get('order', null) is number)
+        && timestampOk(data, 'createdAt')
+        && timestampOk(data, 'lastUpdatedAt')
+        && (data.get('lastVisitedAt', null) == null
+          || data.get('lastVisitedAt', null) is timestamp);
+    }
+
+    // ---------- notes / snippets ----------
+    match /users/{userId}/notes/{noteId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && validNote(request.resource.data, true);
+      allow update: if isOwner(userId)
+        && validNote(request.resource.data, false);
+      allow delete: if isOwner(userId);
+    }
+
+    // NOTE: note `content` is intentionally uncapped (no size() upper
+    // bound). Firestore still enforces its ~1 MiB per-document hard limit.
+    function validNote(data, isCreate) {
+      return data.keys().hasOnly(['title', 'type', 'tags', 'content',
+        'visibility', 'isPinned', 'createdAt', 'lastUpdatedAt'])
+        && textOk(data, 'title', 200)
+        && (isCreate
+          ? (data.get('content', null) is string
+            && data.get('content', '').size() > 0)
+          : (data.get('content', null) == null
+            || data.get('content', null) is string))
+        && (data.get('type', null) == null
+          || isAllowedNoteType(data.get('type', null)))
+        && (data.get('visibility', null) == null
+          || isAllowedNoteVisibility(data.get('visibility', null)))
+        && tagListOk(data, 'tags')
+        && boolOk(data, 'isPinned')
+        && timestampOk(data, 'createdAt')
+        && timestampOk(data, 'lastUpdatedAt');
+    }
+
+    // ---------- task groups ----------
+    // `tasks` elements cannot be iterated in rules; list length is bounded
+    // and every scalar field is validated.
+    match /users/{userId}/taskGroups/{groupId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && requiredText(request.resource.data, 'title', 200)
+        && validTaskGroup(request.resource.data);
+      allow update: if isOwner(userId) && validTaskGroup(request.resource.data);
+      allow delete: if isOwner(userId);
+    }
+
+    function validTaskGroup(data) {
+      return textOk(data, 'title', 200)
+        && textOk(data, 'note', 10000)
+        && tagListOk(data, 'tags')
+        && (data.get('tasks', null) == null
+          || (data.get('tasks', null) is list
+            && data.get('tasks', []).size() <= 500))
+        && boolOk(data, 'isPinned')
+        && timestampOk(data, 'createdAt')
+        && timestampOk(data, 'lastUpdatedAt');
+    }
+
+    // ---------- calendar entries ----------
+    match /users/{userId}/calendarEntries/{entryId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && requiredText(request.resource.data, 'title', 200)
+        && validCalendarEntry(request.resource.data);
+      allow update: if isOwner(userId)
+        && validCalendarEntry(request.resource.data);
+      allow delete: if isOwner(userId);
+    }
+
+    function validCalendarEntry(data) {
+      return data.keys().hasOnly(['title', 'note', 'dateKey', 'time',
+        'reminderEnabled', 'reminderTime', 'projectIds', 'launchpadItemIds',
+        'taskGroupIds', 'startTime', 'endTime', 'notes', 'linkedProjectId',
+        'linkedTaskGroupId', 'createdAt', 'lastUpdatedAt'])
+        && textOk(data, 'title', 200)
+        && textOk(data, 'note', 10000)
+        && patternOk(data, 'dateKey', '^[0-9]{4}-[0-9]{2}-[0-9]{2}$', 10)
+        && patternOk(data, 'time', '^([01][0-9]|2[0-3]):[0-5][0-9]$', 5)
+        && boolOk(data, 'reminderEnabled')
+        && patternOk(data, 'reminderTime', '^([01][0-9]|2[0-3]):[0-5][0-9]$', 5)
+        && (data.get('projectIds', null) == null
+          || (data.get('projectIds', null) is list
+            && data.get('projectIds', []).size() <= 50))
+        && (data.get('launchpadItemIds', null) == null
+          || (data.get('launchpadItemIds', null) is list
+            && data.get('launchpadItemIds', []).size() <= 50))
+        && (data.get('taskGroupIds', null) == null
+          || (data.get('taskGroupIds', null) is list
+            && data.get('taskGroupIds', []).size() <= 50))
+        && textOk(data, 'startTime', 16)
+        && textOk(data, 'endTime', 16)
+        && textOk(data, 'notes', 10000)
+        && textOk(data, 'linkedProjectId', 100)
+        && textOk(data, 'linkedTaskGroupId', 100)
+        && timestampOk(data, 'createdAt')
+        && timestampOk(data, 'lastUpdatedAt');
+    }
+
+    // ---------- documents (Drive-backed metadata) ----------
+    match /users/{userId}/documents/{documentId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && validDocument(request.resource.data, true);
+      allow update: if isOwner(userId)
+        && validDocument(request.resource.data, false);
+      allow delete: if isOwner(userId);
+    }
+
+    function validDocument(data, isCreate) {
+      return data.keys().hasOnly(['title', 'originalName', 'provider',
+        'driveFileId', 'webViewLink', 'previewUrl', 'downloadUrl',
+        'thumbnailUrl', 'extension', 'mimeType', 'kind', 'size',
+        'createdAt', 'lastUpdatedAt'])
+        && textOk(data, 'title', 300)
+        && textOk(data, 'originalName', 300)
+        && (data.get('provider', null) == null
+          || data.get('provider', null) == 'google-drive')
+        && (isCreate
+          ? driveIdOk(data, 'driveFileId')
+          : (data.get('driveFileId', null) == null
+            || data.get('driveFileId', '').matches('^[A-Za-z0-9_-]{10,128}$')))
+        && httpsUrlOk(data, 'webViewLink')
+        && httpsUrlOk(data, 'previewUrl')
+        && httpsUrlOk(data, 'downloadUrl')
+        && httpsUrlOk(data, 'thumbnailUrl')
+        && (data.get('extension', null) == null
+          || isAllowedDocumentExtension(data.get('extension', null)))
+        && (data.get('mimeType', null) == null
+          || isAllowedDocumentMime(data.get('mimeType', null)))
+        && (data.get('kind', null) == null
+          || data.get('kind', null) == 'image'
+          || data.get('kind', null) == 'document')
+        && (data.get('size', null) == null
+          || (data.get('size', null) is number
+            && data.get('size', -1) >= 0
+            && data.get('size', -1) <= 26214400))
+        && timestampOk(data, 'createdAt')
+        && timestampOk(data, 'lastUpdatedAt');
+    }
+
+    // ---------- Drive folder setting ----------
+    match /users/{userId}/settings/googleDrive {
+      allow get: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(['folderId', 'lastUpdatedAt'])
+        && request.resource.data.get('folderId', '') is string
+        && request.resource.data.get('folderId', '')
+          .matches('^[A-Za-z0-9_-]{10,128}$')
+        && (request.resource.data.get('lastUpdatedAt', null) == null
+          || request.resource.data.get('lastUpdatedAt', null) is timestamp);
+      allow delete: if isOwner(userId);
+    }
+
+    // ---------- custom IDE settings ----------
+    match /users/{userId}/settings/editors {
+      allow get: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(['customEditors', 'updatedAt'])
+        && (request.resource.data.get('customEditors', null) == null
+          || (request.resource.data.get('customEditors', null) is list
+            && request.resource.data.get('customEditors', []).size() <= 30))
+        && timestampOk(request.resource.data, 'updatedAt');
+      allow delete: if isOwner(userId);
+    }
+
+    // ---------- plan limits: read-only from clients ----------
+    // Quota/plan data must never be self-granted. Only a privileged backend
+    // may write this document.
+    match /users/{userId}/settings/limits {
+      allow get: if isOwner(userId);
+      allow list, create, update, delete: if false;
+    }
+
+    // ---------- AI daily usage: tightly schema-locked ----------
+    match /users/{userId}/usage/aiDaily {
+      allow get: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(['dateKey', 'count',
+          'dailyLimit', 'timeZone', 'updatedAt', 'createdAt'])
+        && request.resource.data.get('dateKey', '') is string
+        && request.resource.data.get('dateKey', '')
+          .matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.get('count', -1) is number
+        && request.resource.data.get('count', -1) >= 0
+        && request.resource.data.get('count', -1) <= 1000
+        && (request.resource.data.get('dailyLimit', null) == null
+          || (request.resource.data.get('dailyLimit', null) is number
+            && request.resource.data.get('dailyLimit', 0) >= 1
+            && request.resource.data.get('dailyLimit', 0) <= 100))
+        && textOk(request.resource.data, 'timeZone', 80)
+        && timestampOk(request.resource.data, 'updatedAt')
+        && timestampOk(request.resource.data, 'createdAt');
+      allow delete: if isOwner(userId);
+    }
+
+    // ---------- login audit logs: append-only ----------
+    match /users/{userId}/loginLogs/{logId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(['timestamp', 'method',
+          'success', 'userAgent', 'ipAddress'])
+        && request.resource.data.get('timestamp', null) is timestamp
+        && textOk(request.resource.data, 'method', 60)
+        && request.resource.data.get('success', null) is bool
+        && textOk(request.resource.data, 'userAgent', 500)
+        && textOk(request.resource.data, 'ipAddress', 60);
+      allow update, delete: if false;
+    }
+
+    // ---------- explicit deny-all fallback ----------
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

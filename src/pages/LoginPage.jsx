@@ -334,9 +334,6 @@ export default function LoginPage() {
                 className="rounded-2xl border border-slate-200/80 bg-white/60 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 dark:border-slate-700/80 dark:bg-slate-950/40 dark:text-white dark:focus:border-blue-400 dark:focus:bg-slate-950 dark:focus:ring-blue-500/10"
                 required
               />
-              <p className="px-1 text-[11px] text-slate-400 dark:text-slate-500">
-                demo credentials: user@gmail.com
-              </p>
             </div>
 
             <div className="grid gap-1.5">
@@ -351,9 +348,6 @@ export default function LoginPage() {
                 className="rounded-2xl border border-slate-200/80 bg-white/60 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 dark:border-slate-700/80 dark:bg-slate-950/40 dark:text-white dark:focus:border-blue-400 dark:focus:bg-slate-950 dark:focus:ring-blue-500/10"
                 required
               />
-              <p className="px-1 text-[11px] text-slate-400 dark:text-slate-500">
-                demo credentials: password
-              </p>
             </div>
 
             {errorMessage ? (

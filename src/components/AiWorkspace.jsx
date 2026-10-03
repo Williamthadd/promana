@@ -21,7 +21,9 @@ import NoteCard from './NoteCard'
 import TaskGroupCard from './TaskGroupCard'
 import LaunchpadCard from './LaunchpadCard'
 import useAiDailyUsage from '../hooks/useAiDailyUsage'
+import { auth } from '../firebase'
 import { filterNotesForAi } from '../utils/aiWorkspaceData'
+import { tokenizeCode } from '../utils/codeHighlight'
 
 // Daily credits limit definition
 const DAILY_LIMIT = 15
@@ -283,10 +285,20 @@ export default function AiWorkspace({
       setPrompt('')
       setMessages(prev => [...prev, userMessage])
 
+      // Authenticate the Gemini call with the verified Firebase session.
+      // The server derives the UID from this token; the client UID is never
+      // trusted for authorization.
+      const idToken = await auth.currentUser?.getIdToken()
+
+      if (!idToken) {
+        throw new Error('Your session expired. Please sign in again.')
+      }
+
       const response = await fetch('/api/gemini', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
         },
         body: JSON.stringify({
           prompt: activePrompt,
@@ -299,6 +311,18 @@ export default function AiWorkspace({
           }
         })
       })
+
+      if (response.status === 401) {
+        throw new Error('Your session expired. Please sign in again.')
+      }
+
+      if (response.status === 429) {
+        throw new Error('Too many AI requests. Please wait a moment and try again.')
+      }
+
+      if (response.status === 413) {
+        throw new Error('That workspace context is too large for one AI request.')
+      }
 
       if (!response.ok) {
         const errData = await response.json()
@@ -359,7 +383,12 @@ export default function AiWorkspace({
     { label: 'List shortcuts/links', prompt: 'which design tool launchpad or link shortcuts do I have saved?' }
   ]
 
-  // Beautiful monokai-style code text block highlighter
+  // Beautiful monokai-style code text block highlighter.
+  // Security: highlighting is done by tokenizing the RAW string and rendering
+  // React elements (React escapes text automatically). There must never be an
+  // HTML string or dangerouslySetInnerHTML on this path, because code content
+  // comes from untrusted stored notes and untrusted model output.
+  // Tokenizer lives in utils/codeHighlight.js so it is unit-testable.
   const renderMessageText = (text) => {
     if (!text) return null
 
@@ -381,25 +410,21 @@ export default function AiWorkspace({
           }
         }
 
-        // Monokai-style colorizing helper
-        const highlightedCode = code
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          // Highlight common keywords (pink)
-          .replace(/\b(const|let|var|function|return|import|export|default|class|extends|if|else|for|while|try|catch)\b/g, '<span class="text-[#f92672] font-semibold">$1</span>')
-          // Highlight string literals (yellowish green)
-          .replace(/(["'])(?:(?=(\\?))\2.)*?\1/g, '<span class="text-[#e6db74]">$1$&amp;$1</span>')
-          // Highlight comments (grayish green)
-          .replace(/(\/\/.*)/g, '<span class="text-[#75715e] italic">$1</span>')
-          // Highlight custom objects/definitions (cyan)
-          .replace(/\b(db|auth|user|projects|notes|taskGroups|calendarEntries|Timestamp)\b/g, '<span class="text-[#66d9ef]">$1</span>')
-
         return (
           <div key={index} className="my-4 overflow-hidden rounded-2xl border border-white/10 shadow-xl bg-[#272822] text-[#f8f8f2] font-mono text-xs">
             <CodeBlockHeader language={language} code={code} addToast={addToast} />
             <pre className="p-4 overflow-x-auto leading-relaxed">
-              <code dangerouslySetInnerHTML={{ __html: highlightedCode }} />
+              <code>
+                {tokenizeCode(code).map((segment) =>
+                  segment.className ? (
+                    <span key={segment.key} className={segment.className}>
+                      {segment.text}
+                    </span>
+                  ) : (
+                    <span key={segment.key}>{segment.text}</span>
+                  ),
+                )}
+              </code>
             </pre>
           </div>
         )

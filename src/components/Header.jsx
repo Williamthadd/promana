@@ -6,7 +6,7 @@ import { auth } from '../firebase'
 import { clearCachedOfflineImages } from '../features/offline-transfer/offlineImageCache'
 import { resetFirestoreSyncStatus } from '../features/offline-mode/firestoreSyncStore'
 import { toBackgroundRgba } from '../utils/lightBackground'
-import { clearGoogleDriveAccessToken } from '../utils/googleDriveAuth'
+import { clearAllGoogleDriveAccessTokens } from '../utils/googleDriveAuth'
 import BackgroundColorControl from './BackgroundColorControl'
 import BrandMark from './BrandMark'
 import DesignModeControl from './DesignModeControl'
@@ -47,7 +47,10 @@ export default function Header({
   async function handleLogout() {
     try {
       const uid = auth.currentUser?.uid
-      clearGoogleDriveAccessToken(uid)
+      // Sweep every cached Drive token in this tab, not just the current
+      // UID's, so a previous account's token cannot linger after logout or
+      // account switching.
+      clearAllGoogleDriveAccessTokens()
       if (uid) {
         await clearCachedOfflineImages(uid).catch(() => {
           addToast?.(

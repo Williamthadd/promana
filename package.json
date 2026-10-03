@@ -9,8 +9,10 @@
     "build": "vite build",
     "lint": "eslint .",
     "security:dependencies": "node scripts/check-dependency-denylist.mjs",
-    "test": "npm run security:dependencies && npm run test:optical-transfer && npm run test:pwa && npm run test:offline-mode && npm run test:ai-auth-offline && npm run test:notes-search",
+    "test": "npm run security:dependencies && npm run test:optical-transfer && npm run test:pwa && npm run test:offline-mode && npm run test:ai-auth-offline && npm run test:notes-search && npm run test:security && npm run test:firestore-rules",
     "test:ai-auth-offline": "node --test --test-isolation=none tests/ai-auth-offline.test.js",
+    "test:security": "node --test --test-isolation=none tests/security-regression.test.js",
+    "test:firestore-rules": "node --test --test-isolation=none tests/firestore-rules-static.test.js",
     "test:optical-transfer": "node --test --test-isolation=none tests/optical-transfer-protocol.test.js",
     "test:offline-mode": "node --test --test-isolation=none tests/offline-mode.test.js",
     "test:notes-search": "node --test --test-isolation=none tests/notes-search.test.js",
@@ -18,10 +20,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^2.12.0",
+    "@google/genai": "^2.27.0",
     "@vercel/analytics": "^2.0.1",
     "blueimp-md5": "^2.19.0",
-    "firebase": "^12.11.0",
+    "firebase": "^12.19.0",
     "jsqr": "1.4.0",
     "lucide-react": "^0.577.0",
     "motion": "^12.42.2",
@@ -31,16 +33,16 @@
     "react-router-dom": "^7.13.1"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.4",
+    "@eslint/js": "^9.39.5",
     "@tailwindcss/vite": "^4.2.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
-    "eslint": "^9.39.4",
+    "eslint": "^9.39.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
     "tailwindcss": "^4.2.2",
-    "vite": "^8.0.1"
+    "vite": "^8.3.2"
   }
 }

@@ -16,23 +16,51 @@ Object.assign(process.env, env)
 const hasFirebaseEnv = process.env.VITE_FIREBASE_API_KEY && process.env.VITE_FIREBASE_API_KEY !== 'placeholder'
 
 function devApiPlugin() {
+  // Dev-only emulation of Vercel's /api routing. Route names are strictly
+  // allowlisted to single path segments so crafted URLs cannot traverse out
+  // of api/ (e.g. /api/../vite.config) and cause arbitrary files to be
+  // imported as route handlers.
+  const apiDir = path.resolve(__dirname, 'api')
+  const routePattern = /^\/api\/([A-Za-z0-9-]+)$/
+
   return {
     name: 'dev-api-middleware',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         if (req.url && req.url.startsWith('/api/')) {
           const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
-          const apiPath = url.pathname
-          
-          const filePath = path.resolve(__dirname, `.${apiPath}.js`)
-          if (fs.existsSync(filePath)) {
-            try {
+          const routeMatch = url.pathname.match(routePattern)
+
+          if (!routeMatch) {
+            res.statusCode = 404
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: 'Not found' }))
+            return
+          }
+
+          const filePath = path.resolve(apiDir, `${routeMatch[1]}.js`)
+
+          if (!filePath.startsWith(`${apiDir}${path.sep}`) || !fs.existsSync(filePath)) {
+            res.statusCode = 404
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: 'Not found' }))
+            return
+          }
+
+          try {
               let body = ''
               if (req.method === 'POST') {
-                body = await new Promise((resolve) => {
+                body = await new Promise((resolve, reject) => {
                   let chunkData = ''
-                  req.on('data', chunk => chunkData += chunk)
+                  req.on('data', chunk => {
+                    chunkData += chunk
+
+                    if (chunkData.length > 1_048_576) {
+                      reject(new Error('Dev request body is too large.'))
+                    }
+                  })
                   req.on('end', () => resolve(chunkData))
+                  req.on('error', reject)
                 })
               }
               
@@ -74,7 +102,6 @@ function devApiPlugin() {
               res.end(JSON.stringify({ error: err.message }))
               return
             }
-          }
         }
         next()
       })
@@ -92,9 +119,11 @@ export default defineConfig({
     } : {}
   },
   server: {
-    host: '0.0.0.0',
+    // Bind loopback only by default so a dev session is not reachable from
+    // the local network. Set VITE_DEV_HOST=0.0.0.0 explicitly if LAN testing
+    // is required, and never forward the dev server to the public internet.
+    host: process.env.VITE_DEV_HOST || '127.0.0.1',
     port: 3000,
-    allowedHosts: 'all'
   },
   build: {
     sourcemap: false,

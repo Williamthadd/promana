@@ -89,6 +89,11 @@ import {
 import {
   getProjectPathValues,
 } from '../utils/projectEnvironments'
+import { clearAllGoogleDriveAccessTokens } from '../utils/googleDriveAuth'
+import {
+  validateNoteDraft,
+  validateTaskGroupDraft,
+} from '../utils/inputLimits'
 
 function isTypingTarget(element) {
   if (!element) {
@@ -214,6 +219,12 @@ export default function DashboardPage() {
     const nextUserId = user?.uid ?? null
 
     if (syncUserIdRef.current !== nextUserId) {
+      // Account switch (or logout/login): drop any Drive token cached for the
+      // previous account so sessions cannot bleed across accounts in one tab.
+      // syncUserIdRef starts undefined; only sweep on a real change.
+      if (syncUserIdRef.current !== undefined) {
+        clearAllGoogleDriveAccessTokens()
+      }
       resetFirestoreSyncStatus()
       syncUserIdRef.current = nextUserId
     }
@@ -753,6 +764,13 @@ export default function DashboardPage() {
       return
     }
 
+    const noteError = validateNoteDraft(noteDraft)
+
+    if (noteError) {
+      addToast(noteError, 'error')
+      return
+    }
+
     if (!noteDraft.content.trim()) {
       addToast('Add note content before saving.', 'error')
       return
@@ -869,6 +887,13 @@ export default function DashboardPage() {
   async function handleSaveTaskGroup(taskGroupDraft) {
     if (!user) {
       addToast('You need to be signed in to save task groups.', 'error')
+      return
+    }
+
+    const taskGroupError = validateTaskGroupDraft(taskGroupDraft)
+
+    if (taskGroupError) {
+      addToast(taskGroupError, 'error')
       return
     }
 
