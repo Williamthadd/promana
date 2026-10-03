@@ -118,10 +118,11 @@ test('signup enforces a strong minimum password length', () => {
   assert.ok(loginPage.includes('At least'))
 })
 
-test('Google flow has redirect fallback and consumes redirect results', () => {
-  assert.ok(loginPage.includes('signInWithRedirect'))
-  assert.ok(loginPage.includes('getRedirectResult'))
-  assert.ok(loginPage.includes('Continue with Google redirect'))
+test('Google sign-in is popup-only with no redirect UI', () => {
+  assert.ok(loginPage.includes('signInWithPopup'))
+  assert.ok(!loginPage.includes('signInWithRedirect'))
+  assert.ok(!loginPage.includes('getRedirectResult'))
+  assert.ok(!loginPage.includes('Continue with Google redirect'))
 })
 
 test('Google sign-in uses incremental authorization (no Drive scope at login)', () => {
@@ -172,6 +173,13 @@ test('production CSP permits the Firebase/Google auth handshake', () => {
   assert.ok(!csp.includes('api.ipify.org'))
   assert.match(csp, /frame-src[^;]*accounts\.google\.com/)
   assert.match(csp, /frame-src[^;]*firebaseapp\.com/)
+  // The Firebase SDK injects https://apis.google.com/js/api.js during Google
+  // sign-in; blocking it breaks the handshake (regression test for the
+  // observed `script-src 'self'` violation).
+  assert.match(csp, /script-src[^;]*https:\/\/apis\.google\.com/)
+  assert.match(csp, /script-src[^;]*https:\/\/accounts\.google\.com/)
+  assert.doesNotMatch(csp, /script-src[^;]*'unsafe-inline'/)
+  assert.doesNotMatch(csp, /script-src[^;]*'unsafe-eval'/)
 })
 
 test('session persistence is explicit and offline-compatible', () => {

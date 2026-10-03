@@ -2,12 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
-  getRedirectResult,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
-  signInWithRedirect,
 } from 'firebase/auth'
 import { addDoc, collection, Timestamp } from 'firebase/firestore'
 import { LoaderCircle, QrCode, WifiOff } from 'lucide-react'
@@ -132,48 +130,6 @@ export default function LoginPage() {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode)
   }, [darkMode])
-
-  // Complete a redirect-based Google sign-in (fallback when popups fail).
-  useEffect(() => {
-    let cancelled = false
-
-    async function consumeRedirect() {
-      try {
-        const result = await getRedirectResult(auth)
-        if (cancelled || !result) {
-          return
-        }
-        // Deliberately no Drive token is stored here: the login provider
-        // carries no Drive scope, so any access token from this flow must
-        // never be reused as a Drive credential. Drive is connected later
-        // with its own scoped re-authentication.
-        void recordAuthAttempt({
-          uid: result.user.uid,
-          method: 'google-redirect',
-          success: true,
-        })
-        navigate('/dashboard', { replace: true })
-      } catch (error) {
-        if (cancelled) {
-          return
-        }
-        logAuthDiagnostics(error, 'google-redirect')
-        setErrorMessage(toUserError(error))
-        void recordAuthAttempt({
-          uid: null,
-          method: 'google-redirect',
-          success: false,
-          error,
-        })
-      }
-    }
-
-    void consumeRedirect()
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // Client audit writes are best-effort and non-authoritative: the UID comes
   // from the verified Firebase user object, the timestamp is server-set via
@@ -399,36 +355,6 @@ export default function LoginPage() {
         error,
       })
     } finally {
-      releaseGuard()
-    }
-  }
-
-  async function handleGoogleRedirect() {
-    if (isOffline) {
-      showOfflineAuthMessage()
-      return
-    }
-
-    if (guardConcurrent()) {
-      return
-    }
-
-    setLoading(true)
-    setErrorMessage('')
-    googleProvider.setCustomParameters({ prompt: 'select_account' })
-
-    try {
-      await signInWithRedirect(auth, googleProvider)
-      // Navigation leaves the page; the result is consumed on return.
-    } catch (error) {
-      logAuthDiagnostics(error, 'google-redirect-start')
-      setErrorMessage(toUserError(error))
-      void recordAuthAttempt({
-        uid: null,
-        method: 'google-redirect',
-        success: false,
-        error,
-      })
       releaseGuard()
     }
   }
@@ -733,15 +659,6 @@ export default function LoginPage() {
               >
                 <GoogleIcon />
                 Sign in with Google
-              </button>
-
-              <button
-                type="button"
-                disabled={loading || isOffline}
-                onClick={handleGoogleRedirect}
-                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white/60 px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-80 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:bg-slate-900"
-              >
-                Trouble with the popup? Continue with Google redirect
               </button>
             </>
           ) : null}
