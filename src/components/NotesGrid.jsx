@@ -12,6 +12,7 @@ export default function NotesGrid({
   filterTag,
   onDelete,
   onEdit,
+  onSaveContent,
   onTogglePin,
   onTagClick,
   addToast,
@@ -92,6 +93,7 @@ export default function NotesGrid({
                 note={note}
                 onDelete={onDelete}
                 onEdit={onEdit}
+                onSaveContent={onSaveContent}
                 onTogglePin={onTogglePin}
                 onTagClick={onTagClick}
                 addToast={addToast}
@@ -115,6 +117,7 @@ export default function NotesGrid({
                 note={note}
                 onDelete={onDelete}
                 onEdit={onEdit}
+                onSaveContent={onSaveContent}
                 onTogglePin={onTogglePin}
                 onTagClick={onTagClick}
                 addToast={addToast}

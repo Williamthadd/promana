@@ -69,6 +69,7 @@ import useDocuments from '../hooks/useDocuments'
 import useLightBackgroundColor from '../hooks/useLightBackgroundColor'
 import useLaunchpad from '../hooks/useLaunchpad'
 import useNotes from '../hooks/useNotes'
+import useDecryptedNotes from '../hooks/useDecryptedNotes'
 import useProjects from '../hooks/useProjects'
 import useTaskGroups from '../hooks/useTaskGroups'
 import useToast from '../hooks/useToast'
@@ -94,6 +95,13 @@ import {
   validateNoteDraft,
   validateTaskGroupDraft,
 } from '../utils/inputLimits'
+import {
+  encryptNoteContent,
+  exportNoteKeyBackup,
+  getOrCreateNoteKey,
+  getSubtleCrypto,
+  importNoteKey,
+} from '../utils/noteEncryption'
 
 function isTypingTarget(element) {
   if (!element) {
@@ -168,6 +176,10 @@ export default function DashboardPage() {
     error: launchpadError,
   } = useLaunchpad()
   const { notes, loading: notesLoading, error: notesError } = useNotes(user?.uid)
+  // Hidden-note ciphertext is decrypted in memory here; Firestore only ever
+  // holds the encrypted payload. Locked notes (no key on this device) carry
+  // `contentLocked: true` and never expose ciphertext to the UI or AI.
+  const displayNotes = useDecryptedNotes(user?.uid, notes)
   const {
     documents,
     loading: documentsLoading,
@@ -236,6 +248,9 @@ export default function DashboardPage() {
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false)
   const [activeNote, setActiveNote] = useState(null)
   const [isSavingNote, setIsSavingNote] = useState(false)
+  const [isKeyImportOpen, setIsKeyImportOpen] = useState(false)
+  const [keyImportDraft, setKeyImportDraft] = useState('')
+  const [isKeyBusy, setIsKeyBusy] = useState(false)
   const [isTaskGroupModalOpen, setIsTaskGroupModalOpen] = useState(false)
   const [activeTaskGroup, setActiveTaskGroup] = useState(null)
   const [isSavingTaskGroup, setIsSavingTaskGroup] = useState(false)
@@ -658,8 +673,62 @@ export default function DashboardPage() {
       return
     }
 
+    if (note?.contentLocked) {
+      addToast(
+        'This hidden note is locked on this device. Import your encryption key or open it where it was created.',
+        'info',
+      )
+      return
+    }
+
     setActiveNote(note)
     setIsNoteModalOpen(true)
+  }
+
+  async function handleExportNoteKey() {
+    if (!user?.uid || isKeyBusy) {
+      return
+    }
+
+    setIsKeyBusy(true)
+
+    try {
+      const backup = await exportNoteKeyBackup(user.uid)
+      await navigator.clipboard.writeText(backup)
+      addToast(
+        'Encryption key copied. Store it somewhere safe — it unlocks your hidden notes on other devices.',
+        'success',
+      )
+    } catch (error) {
+      addToast(
+        error?.message ?? 'Unable to export the encryption key right now.',
+        'error',
+      )
+    } finally {
+      setIsKeyBusy(false)
+    }
+  }
+
+  async function handleImportNoteKey() {
+    if (!user?.uid || isKeyBusy) {
+      return
+    }
+
+    setIsKeyBusy(true)
+
+    try {
+      await importNoteKey(user.uid, keyImportDraft)
+      setKeyImportDraft('')
+      setIsKeyImportOpen(false)
+      addToast('Encryption key imported. Locked notes will unlock.', 'success')
+    } catch (error) {
+      addToast(
+        error?.message ?? 'Unable to import that encryption key.',
+        'error',
+      )
+    } finally {
+      setIsKeyBusy(false)
+    }
   }
 
   function showWriteSuccess(message, result) {
@@ -788,12 +857,41 @@ export default function DashboardPage() {
 
     const title = noteDraft.title || getNoteTypeLabel(noteDraft.type)
     const timestamp = Timestamp.now()
+    const visibility = normalizeNoteVisibility(noteDraft.visibility)
+    let contentToStore = noteDraft.content.trimEnd()
+
+    // Hidden notes are encrypted on this device before Firestore ever sees
+    // them. Visible notes stay plaintext. Never fall back to plaintext for
+    // hidden notes: abort the save instead.
+    if (visibility === 'hidden') {
+      if (!getSubtleCrypto()) {
+        addToast(
+          'This browser cannot encrypt hidden notes. Try a recent browser version.',
+          'error',
+        )
+        setIsSavingNote(false)
+        return
+      }
+
+      try {
+        const key = await getOrCreateNoteKey(user.uid)
+        contentToStore = await encryptNoteContent(
+          noteDraft.content.trimEnd(),
+          key,
+        )
+      } catch {
+        addToast('Unable to encrypt that hidden note right now.', 'error')
+        setIsSavingNote(false)
+        return
+      }
+    }
+
     const payload = {
       title,
       type: noteDraft.type,
       tags: noteDraft.tags ?? [],
-      content: noteDraft.content.trimEnd(),
-      visibility: normalizeNoteVisibility(noteDraft.visibility),
+      content: contentToStore,
+      visibility,
       isPinned: activeNote?.isPinned ?? false,
       lastUpdatedAt: timestamp,
     }
@@ -827,6 +925,60 @@ export default function DashboardPage() {
       addToast('Unable to save that note right now.', 'error')
     } finally {
       setIsSavingNote(false)
+    }
+  }
+
+  async function handleSaveNoteContent(note, content) {
+    if (!user) {
+      addToast('You need to be signed in to save notes.', 'error')
+      return false
+    }
+
+    const trimmedContent = String(content ?? '').trimEnd()
+
+    if (!trimmedContent.trim()) {
+      addToast('Add note content before saving.', 'error')
+      return false
+    }
+
+    const visibility = normalizeNoteVisibility(note.visibility)
+    let contentToStore = trimmedContent
+
+    // Same rule as the composer save: hidden-note content is encrypted
+    // on this device before Firestore ever sees it. Never store plaintext
+    // for hidden notes.
+    if (visibility === 'hidden') {
+      if (!getSubtleCrypto()) {
+        addToast(
+          'This browser cannot encrypt hidden notes. Try a recent browser version.',
+          'error',
+        )
+        return false
+      }
+
+      try {
+        const key = await getOrCreateNoteKey(user.uid)
+        contentToStore = await encryptNoteContent(trimmedContent, key)
+      } catch {
+        addToast('Unable to encrypt that hidden note right now.', 'error')
+        return false
+      }
+    }
+
+    try {
+      const result = await queueFirestoreWrite(
+        () =>
+          updateDoc(doc(db, 'users', user.uid, 'notes', note.id), {
+            content: contentToStore,
+            lastUpdatedAt: Timestamp.now(),
+          }),
+        'Note content update',
+      )
+      showWriteSuccess('Note content updated.', result)
+      return true
+    } catch {
+      addToast('Unable to save that note right now.', 'error')
+      return false
     }
   }
 
@@ -1435,6 +1587,51 @@ export default function DashboardPage() {
                         : `${planLabel}: ${usedNoteCount}/${maxNotes} notes used. ${remainingNoteSlots} slot${remainingNoteSlots === 1 ? '' : 's'} left.`}
                     </p>
                   ) : null}
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                    <span>
+                      Hidden notes are stored encrypted on this device.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void handleExportNoteKey()}
+                      disabled={isKeyBusy}
+                      className="rounded-full border border-blue-200 px-3 py-1.5 font-semibold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-500/30 dark:text-blue-200 dark:hover:bg-blue-500/10"
+                    >
+                      Back up key
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsKeyImportOpen((current) => !current)}
+                      className="rounded-full border border-slate-200 px-3 py-1.5 font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      {isKeyImportOpen ? 'Close import' : 'Import key'}
+                    </button>
+                  </div>
+                  {isKeyImportOpen ? (
+                    <div className="mt-2 grid max-w-xl gap-2">
+                      <textarea
+                        rows={2}
+                        value={keyImportDraft}
+                        onChange={(event) => setKeyImportDraft(event.target.value)}
+                        placeholder="Paste an encryption key backup from your other device…"
+                        className="resize-none rounded-2xl border border-gray-200 px-3 py-3 font-mono text-xs text-slate-900 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleImportNoteKey()}
+                          disabled={isKeyBusy || !keyImportDraft.trim()}
+                          className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isKeyBusy ? 'Importing…' : 'Import key'}
+                        </button>
+                        <p className="w-full text-xs text-slate-500 dark:text-slate-400">
+                          Never paste your key into untrusted pages. Anyone
+                          holding it can read your hidden notes.
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
                 </>
               ) : (
                 <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -2001,13 +2198,14 @@ export default function DashboardPage() {
             </section>
 
             <NotesGrid
-              notes={notes}
+              notes={displayNotes}
               loading={notesLoading}
               searchQuery={notesSearch}
               filterType={notesFilterType}
               filterTag={notesFilterTag}
               onDelete={handleDeleteNote}
               onEdit={openNoteComposer}
+              onSaveContent={handleSaveNoteContent}
               onTogglePin={handleToggleNotePin}
               onTagClick={setNotesFilterTag}
               addToast={addToast}
@@ -2206,7 +2404,7 @@ export default function DashboardPage() {
             }
             projects={projects}
             launchpadItems={launchpadItems}
-            notes={notes}
+            notes={displayNotes}
             taskGroups={taskGroups}
             calendarEntries={calendarEntries}
             onDeleteProject={handleDeleteProject}
@@ -2215,6 +2413,7 @@ export default function DashboardPage() {
             }}
             onDeleteNote={handleDeleteNote}
             onEditNote={openNoteComposer}
+            onSaveNoteContent={handleSaveNoteContent}
             onToggleNotePin={handleToggleNotePin}
             onDeleteTaskGroup={setTaskGroupToDelete}
             onEditTaskGroup={openTaskGroupComposer}

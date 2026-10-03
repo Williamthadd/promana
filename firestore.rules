@@ -178,6 +178,9 @@ service cloud.firestore {
 
     // NOTE: note `content` is intentionally uncapped (no size() upper
     // bound). Firestore still enforces its ~1 MiB per-document hard limit.
+    // Hidden notes store AES-GCM ciphertext in `content` (see
+    // src/utils/noteEncryption.js); rules only require a string, and the
+    // key never touches Firestore.
     function validNote(data, isCreate) {
       return data.keys().hasOnly(['title', 'type', 'tags', 'content',
         'visibility', 'isPinned', 'createdAt', 'lastUpdatedAt'])

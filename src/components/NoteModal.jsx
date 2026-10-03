@@ -193,7 +193,9 @@ function NoteModalForm({ note, onClose, onSubmit, isSaving }) {
                 })}
               </div>
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Visibility only masks this card's content; it does not change account access.
+                Hidden notes are stored encrypted in the database and stay out
+                of search and AI context. Titles and tags stay readable so
+                cards remain easy to scan.
               </p>
             </fieldset>
 

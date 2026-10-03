@@ -15,7 +15,8 @@ export const NOTE_VISIBILITY_OPTIONS = [
   {
     value: "hidden",
     label: "Hidden by default",
-    description: "Mask the content until you reveal it with the eye button.",
+    description:
+      "Mask the content until you reveal it, and store it encrypted in the database.",
   },
 ]
 

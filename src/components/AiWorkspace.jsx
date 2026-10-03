@@ -100,6 +100,7 @@ export default function AiWorkspace({
   onEditProject,
   onDeleteNote,
   onEditNote,
+  onSaveNoteContent,
   onToggleNotePin,
   onDeleteTaskGroup,
   onEditTaskGroup,
@@ -727,6 +728,7 @@ export default function AiWorkspace({
                                       note={nt}
                                       onDelete={onDeleteNote}
                                       onEdit={onEditNote}
+                                      onSaveContent={onSaveNoteContent}
                                       onTogglePin={onToggleNotePin}
                                       addToast={addToast}
                                     />
