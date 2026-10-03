@@ -3,6 +3,13 @@ import {
   reauthenticateWithPopup,
 } from 'firebase/auth'
 
+// Full Drive scope is required because users attach ANY pre-existing folder by
+// pasting its ID/URL (see DocumentsWorkspace + /api/drive-files folder
+// verification). The narrower drive.file scope only covers files created by
+// this app (or opened via a Drive picker) and would break that flow. Do NOT
+// downgrade without also migrating folder selection to a Drive picker and
+// re-testing verify/create/upload/complete/delete. This broad scope is also
+// why Google sign-in consent must stay verified in the OAuth consent screen.
 export const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'
 
 const TOKEN_STORAGE_PREFIX = 'promana-google-drive-token'

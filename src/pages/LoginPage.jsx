@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
+  getRedirectResult,
+  sendEmailVerification,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
 } from 'firebase/auth'
 import { addDoc, collection, Timestamp } from 'firebase/firestore'
 import { LoaderCircle, QrCode, WifiOff } from 'lucide-react'
@@ -17,10 +21,18 @@ import useConnectivity from '../features/offline-mode/useConnectivity'
 import useLightBackgroundColor from '../hooks/useLightBackgroundColor'
 import reportAuthFailure from '../utils/authFailureReporter'
 import {
+  getAuthErrorMessage,
+  MIN_SIGNUP_PASSWORD_LENGTH,
+  normalizeEmail,
+} from '../utils/authErrors'
+import {
   GOOGLE_DRIVE_SCOPE,
   saveGoogleDriveAccessToken,
 } from '../utils/googleDriveAuth'
-import fetchIpAddress from '../utils/ipFetcher'
+
+const MAX_EMAIL_LENGTH = 254
+const MAX_PASSWORD_LENGTH = 1024
+const VERIFICATION_RESEND_COOLDOWN_MS = 60_000
 
 function GoogleIcon() {
   return (
@@ -45,56 +57,38 @@ function GoogleIcon() {
   )
 }
 
-function getAuthErrorMessage(error) {
-  const code = error?.code ?? ''
-
-  if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
-    return 'The email or password is incorrect.'
+// Developer-only diagnostics: never rendered in the UI. Helps distinguish
+// Firebase console misconfiguration (authorized domains, providers, API key
+// restrictions, OAuth consent) from user errors.
+function logAuthDiagnostics(error, method) {
+  try {
+    const code = error?.code ?? 'unknown'
+    if (
+      code === 'auth/internal-error' ||
+      code === 'auth/unauthorized-domain' ||
+      code === 'auth/operation-not-allowed'
+    ) {
+      console.debug('[AUTH_DIAGNOSTICS]', {
+        method,
+        code,
+        origin:
+          typeof window !== 'undefined' ? window.location.origin : 'unknown',
+        authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? 'unknown',
+        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? 'unknown',
+        hint: 'Check Firebase Console: authorized domains include this origin; Google + Email providers enabled; API key allows Identity Toolkit; OAuth consent configured. Also check third-party-cookie / popup blockers.',
+      })
+    }
+  } catch {
+    // Diagnostics must never break auth feedback.
   }
+}
 
-  if (code === 'auth/user-not-found') {
-    return 'No account was found for that email.'
+function isPlausibleEmail(value) {
+  if (!value || value.length > MAX_EMAIL_LENGTH) {
+    return false
   }
-
-  if (code === 'auth/email-already-in-use') {
-    return 'That email is already registered.'
-  }
-
-  if (code === 'auth/popup-closed-by-user') {
-    return 'Google sign-in was closed before it finished.'
-  }
-
-  if (code === 'auth/popup-blocked') {
-    return 'The Google sign-in popup was blocked by the browser. Allow popups for this site and try again.'
-  }
-
-  if (code === 'auth/cancelled-popup-request') {
-    return 'Another Google sign-in popup is already in progress. Close the extra popup and try again.'
-  }
-
-  if (code === 'auth/unauthorized-domain') {
-    return 'This production domain is not authorized in Firebase Authentication yet. Add your deployed domain in Firebase Console -> Authentication -> Settings -> Authorized domains.'
-  }
-
-  if (code === 'auth/operation-not-allowed') {
-    return 'Google sign-in is not enabled for this Firebase project. Enable Google in Firebase Console -> Authentication -> Sign-in method.'
-  }
-
-  if (code === 'auth/account-exists-with-different-credential') {
-    return 'This email already exists with a different sign-in method. Sign in with the existing method first, then link Google if needed.'
-  }
-
-  if (code === 'auth/network-request-failed') {
-    return 'The network request failed while contacting Firebase. Check your connection and try again.'
-  }
-
-  if (code === 'auth/weak-password') {
-    return 'Choose a stronger password with at least 6 characters.'
-  }
-
-  return code
-    ? `Authentication failed (${code}). Please try again.`
-    : 'Authentication failed. Please try again.'
+  // Minimal shape check; Firebase remains the authority on identity semantics.
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
 export default function LoginPage() {
@@ -102,7 +96,13 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+  const [infoMessage, setInfoMessage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [redirectAvailable, setRedirectAvailable] = useState(false)
+  const [verificationNotice, setVerificationNotice] = useState('')
+  const [verificationBusy, setVerificationBusy] = useState(false)
+  const [lastVerificationSentAt, setLastVerificationSentAt] = useState(0)
+  const authInProgress = useRef(false)
   const [darkMode] = useState(
     () => window.localStorage.getItem('proman-theme') === 'dark',
   )
@@ -116,6 +116,10 @@ export default function LoginPage() {
   } = useLightBackgroundColor()
   const googleProvider = useMemo(() => {
     const provider = new GoogleAuthProvider()
+    // Full Drive scope is required because users can attach ANY existing
+    // folder by pasting its ID/URL (verified server-side). drive.file would
+    // only cover files created by this app and would break that flow.
+    // See SECURITY_AUTH_AUDIT.md. Revisit if a Drive picker is adopted.
     provider.addScope(GOOGLE_DRIVE_SCOPE)
     return provider
   }, [])
@@ -124,7 +128,57 @@ export default function LoginPage() {
     document.documentElement.classList.toggle('dark', darkMode)
   }, [darkMode])
 
-  async function writeLoginLog({ uid, method, success, ipAddress }) {
+  // Complete a redirect-based Google sign-in (fallback when popups fail).
+  useEffect(() => {
+    let cancelled = false
+
+    async function consumeRedirect() {
+      try {
+        const result = await getRedirectResult(auth)
+        if (cancelled || !result) {
+          return
+        }
+        const googleCredential =
+          GoogleAuthProvider.credentialFromResult(result)
+        if (googleCredential?.accessToken) {
+          saveGoogleDriveAccessToken(
+            result.user.uid,
+            googleCredential.accessToken,
+          )
+        }
+        void recordAuthAttempt({
+          uid: result.user.uid,
+          method: 'google-redirect',
+          success: true,
+        })
+        navigate('/dashboard', { replace: true })
+      } catch (error) {
+        if (cancelled) {
+          return
+        }
+        logAuthDiagnostics(error, 'google-redirect')
+        setErrorMessage(getAuthErrorMessage(error))
+        void recordAuthAttempt({
+          uid: null,
+          method: 'google-redirect',
+          success: false,
+          error,
+        })
+      }
+    }
+
+    void consumeRedirect()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Client audit writes are best-effort and non-authoritative: the UID comes
+  // from the verified Firebase user object, the timestamp is server-set via
+  // Firestore Timestamp.now(), and network identity is derived server-side in
+  // /api/log-auth-error. No client IP is collected (see ipFetcher removal).
+  async function writeLoginLog({ uid, method, success }) {
     if (!uid) {
       return
     }
@@ -134,8 +188,7 @@ export default function LoginPage() {
         timestamp: Timestamp.now(),
         method,
         success,
-        userAgent: navigator.userAgent,
-        ipAddress,
+        userAgent: String(navigator.userAgent ?? '').slice(0, 500),
       })
     } catch {
       // Firestore logging is best-effort here to avoid interrupting auth.
@@ -143,10 +196,7 @@ export default function LoginPage() {
   }
 
   async function recordAuthAttempt({ uid, method, success, error }) {
-    const ipAddress = await fetchIpAddress()
-    const reports = [
-      writeLoginLog({ uid, method, success, ipAddress }),
-    ]
+    const reports = [writeLoginLog({ uid, method, success })]
 
     if (!success) {
       reports.push(
@@ -155,8 +205,9 @@ export default function LoginPage() {
           authMode,
           code: error?.code ?? null,
           message: error?.message ?? null,
-          ipAddress,
-          emailProvided: method === 'google' ? false : Boolean(email.trim()),
+          emailProvided: method.startsWith('google')
+            ? false
+            : Boolean(normalizeEmail(email)),
         }),
       )
     }
@@ -170,6 +221,19 @@ export default function LoginPage() {
     )
   }
 
+  function guardConcurrent() {
+    if (authInProgress.current || loading) {
+      return true
+    }
+    authInProgress.current = true
+    return false
+  }
+
+  function releaseGuard() {
+    authInProgress.current = false
+    setLoading(false)
+  }
+
   async function handleEmailSubmit(event) {
     event.preventDefault()
 
@@ -178,37 +242,122 @@ export default function LoginPage() {
       return
     }
 
+    if (guardConcurrent()) {
+      return
+    }
+
     setLoading(true)
     setErrorMessage('')
+    setInfoMessage('')
 
+    const cleanEmail = normalizeEmail(email)
     const method = authMode === 'login' ? 'email-password' : 'email-signup'
 
-    try {
-      const credentials =
+    if (!isPlausibleEmail(cleanEmail)) {
+      setErrorMessage(
         authMode === 'login'
-          ? await signInWithEmailAndPassword(auth, email, password)
-          : await createUserWithEmailAndPassword(auth, email, password)
-
-      // Authentication is the primary action. IP lookup and audit logging are
-      // best-effort and must never delay entry to a successfully opened app.
+          ? 'Unable to sign in with those credentials.'
+          : 'Enter a valid email address to create an account.',
+      )
       void recordAuthAttempt({
-        uid: credentials.user.uid,
+        uid: null,
         method,
-        success: true,
+        success: false,
+        error: { code: 'auth/invalid-email' },
       })
+      releaseGuard()
+      return
+    }
 
-      navigate('/dashboard', { replace: true })
+    if (
+      !password ||
+      password.length > MAX_PASSWORD_LENGTH ||
+      (authMode === 'signup' && password.length < MIN_SIGNUP_PASSWORD_LENGTH)
+    ) {
+      setErrorMessage(
+        authMode === 'signup'
+          ? `Choose a stronger password with at least ${MIN_SIGNUP_PASSWORD_LENGTH} characters. Longer passphrases are welcome.`
+          : 'Unable to sign in with those credentials.',
+      )
+      void recordAuthAttempt({
+        uid: null,
+        method,
+        success: false,
+        error: { code: 'auth/weak-password' },
+      })
+      setPassword('')
+      releaseGuard()
+      return
+    }
+
+    try {
+      if (authMode === 'login') {
+        const credentials = await signInWithEmailAndPassword(
+          auth,
+          cleanEmail,
+          password,
+        )
+        setPassword('')
+
+        if (
+          !credentials.user.emailVerified &&
+          credentials.user.providerData?.some((p) => p.providerId === 'password')
+        ) {
+          setVerificationNotice(
+            'Your email address is not verified yet. Some features stay limited until verification. Check your inbox, or resend below.',
+          )
+        }
+
+        // Authentication is the primary action. Audit logging is
+        // best-effort and must never delay entry to a successfully opened app.
+        void recordAuthAttempt({
+          uid: credentials.user.uid,
+          method,
+          success: true,
+        })
+
+        navigate('/dashboard', { replace: true })
+      } else {
+        const credentials = await createUserWithEmailAndPassword(
+          auth,
+          cleanEmail,
+          password,
+        )
+        setPassword('')
+
+        try {
+          await sendEmailVerification(credentials.user)
+          setLastVerificationSentAt(Date.now())
+          setVerificationNotice(
+            'Account created. We sent a verification email — confirm it before relying on email features. You can continue to the workspace.',
+          )
+        } catch {
+          setVerificationNotice(
+            'Account created, but the verification email could not be sent right now. Use Resend below.',
+          )
+        }
+
+        void recordAuthAttempt({
+          uid: credentials.user.uid,
+          method,
+          success: true,
+        })
+
+        navigate('/dashboard', { replace: true })
+      }
     } catch (error) {
+      logAuthDiagnostics(error, method)
       setErrorMessage(getAuthErrorMessage(error))
+      setPassword('')
 
       void recordAuthAttempt({
-        uid: auth.currentUser?.uid ?? null,
+        uid: null,
         method,
         success: false,
         error,
       })
     } finally {
-      setLoading(false)
+      releaseGuard()
     }
   }
 
@@ -218,18 +367,25 @@ export default function LoginPage() {
       return
     }
 
+    if (guardConcurrent()) {
+      return
+    }
+
     setLoading(true)
     setErrorMessage('')
+    setInfoMessage('')
     googleProvider.setCustomParameters({ prompt: 'select_account' })
 
     try {
       const credentials = await signInWithPopup(auth, googleProvider)
       const googleCredential =
         GoogleAuthProvider.credentialFromResult(credentials)
-      saveGoogleDriveAccessToken(
-        credentials.user.uid,
-        googleCredential?.accessToken,
-      )
+      if (googleCredential?.accessToken) {
+        saveGoogleDriveAccessToken(
+          credentials.user.uid,
+          googleCredential.accessToken,
+        )
+      }
       void recordAuthAttempt({
         uid: credentials.user.uid,
         method: 'google',
@@ -238,16 +394,160 @@ export default function LoginPage() {
 
       navigate('/dashboard', { replace: true })
     } catch (error) {
+      logAuthDiagnostics(error, 'google')
       setErrorMessage(getAuthErrorMessage(error))
 
+      // Popups fail in hardened browsers (blocked third-party cookies,
+      // strict popup blockers, some in-app webviews). Offer redirect as a
+      // compatible fallback instead of leaving the user stuck.
+      if (
+        error?.code === 'auth/popup-blocked' ||
+        error?.code === 'auth/internal-error' ||
+        error?.code === 'auth/popup-closed-by-user' ||
+        error?.code === 'auth/cancelled-popup-request'
+      ) {
+        setRedirectAvailable(true)
+      }
+
       void recordAuthAttempt({
-        uid: auth.currentUser?.uid ?? null,
+        uid: null,
         method: 'google',
         success: false,
         error,
       })
     } finally {
-      setLoading(false)
+      releaseGuard()
+    }
+  }
+
+  async function handleGoogleRedirect() {
+    if (isOffline) {
+      showOfflineAuthMessage()
+      return
+    }
+
+    if (guardConcurrent()) {
+      return
+    }
+
+    setLoading(true)
+    setErrorMessage('')
+    googleProvider.setCustomParameters({ prompt: 'select_account' })
+
+    try {
+      await signInWithRedirect(auth, googleProvider)
+      // Navigation leaves the page; the result is consumed on return.
+    } catch (error) {
+      logAuthDiagnostics(error, 'google-redirect-start')
+      setErrorMessage(getAuthErrorMessage(error))
+      void recordAuthAttempt({
+        uid: null,
+        method: 'google-redirect',
+        success: false,
+        error,
+      })
+      releaseGuard()
+    }
+  }
+
+  async function handlePasswordReset(event) {
+    event.preventDefault()
+
+    if (isOffline) {
+      showOfflineAuthMessage()
+      return
+    }
+
+    if (guardConcurrent()) {
+      return
+    }
+
+    setLoading(true)
+    setErrorMessage('')
+    setInfoMessage('')
+
+    const cleanEmail = normalizeEmail(email)
+
+    try {
+      // Always respond generically so the UI never reveals whether the
+      // address has an account.
+      if (isPlausibleEmail(cleanEmail)) {
+        await sendPasswordResetEmail(auth, cleanEmail)
+      }
+      setInfoMessage(
+        'If an account matches that address, password-reset instructions were sent to the email.',
+      )
+    } catch (error) {
+      logAuthDiagnostics(error, 'password-reset')
+      setInfoMessage(
+        'If an account matches that address, password-reset instructions were sent to the email.',
+      )
+      void recordAuthAttempt({
+        uid: null,
+        method: 'email-reset',
+        success: false,
+        error,
+      })
+    } finally {
+      releaseGuard()
+    }
+  }
+
+  async function handleResendVerification() {
+    const currentUser = auth.currentUser
+
+    if (!currentUser || verificationBusy) {
+      return
+    }
+
+    if (Date.now() - lastVerificationSentAt < VERIFICATION_RESEND_COOLDOWN_MS) {
+      setVerificationNotice(
+        'A verification email was just sent. Please wait a minute before requesting another.',
+      )
+      return
+    }
+
+    setVerificationBusy(true)
+
+    try {
+      await sendEmailVerification(currentUser)
+      setLastVerificationSentAt(Date.now())
+      setVerificationNotice(
+        'Verification email sent. Check your inbox (and spam folder).',
+      )
+    } catch {
+      setVerificationNotice(
+        'The verification email could not be sent right now. Try again later.',
+      )
+    } finally {
+      setVerificationBusy(false)
+    }
+  }
+
+  async function handleRefreshVerification() {
+    const currentUser = auth.currentUser
+
+    if (!currentUser) {
+      return
+    }
+
+    setVerificationBusy(true)
+
+    try {
+      await currentUser.reload()
+      const fresh = auth.currentUser
+
+      if (fresh?.emailVerified) {
+        setVerificationNotice('Email verified. Full workspace access enabled.')
+      } else {
+        setVerificationNotice(
+          'Still unverified. Confirm the link in your inbox, then refresh again.',
+        )
+      }
+    } catch {
+      setVerificationNotice('Could not refresh verification status right now.')
+    } finally {
+      setVerificationBusy(false)
     }
   }
 
@@ -265,6 +565,8 @@ export default function LoginPage() {
   if (user) {
     return <Navigate to="/dashboard" replace />
   }
+
+  const isResetMode = authMode === 'reset'
 
   return (
     <div
@@ -300,14 +602,49 @@ export default function LoginPage() {
               Developer Workspace Launcher
             </p>
             <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-              {authMode === 'login' ? 'Welcome back' : 'Create your account'}
+              {authMode === 'login'
+                ? 'Welcome back'
+                : authMode === 'signup'
+                  ? 'Create your account'
+                  : 'Reset your password'}
             </h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Manage your local environments, notes, and targets.
             </p>
           </div>
 
-          <form className="grid gap-5" onSubmit={handleEmailSubmit}>
+          {verificationNotice ? (
+            <div
+              className="mb-5 rounded-2xl border border-blue-200 bg-blue-50/90 px-4 py-3 text-sm text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200"
+              role="status"
+              aria-live="polite"
+            >
+              <p>{verificationNotice}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleResendVerification}
+                  disabled={verificationBusy}
+                  className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white transition hover:brightness-110 disabled:opacity-60"
+                >
+                  Resend verification
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRefreshVerification}
+                  disabled={verificationBusy}
+                  className="rounded-xl border border-blue-300 px-3 py-1.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:opacity-60 dark:border-blue-500/40 dark:text-blue-200 dark:hover:bg-blue-500/10"
+                >
+                  I verified — refresh
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          <form
+            className="grid gap-5"
+            onSubmit={isResetMode ? handlePasswordReset : handleEmailSubmit}
+          >
             {isOffline ? (
               <div
                 className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
@@ -331,28 +668,51 @@ export default function LoginPage() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="developer@example.com"
+                autoComplete={isResetMode ? 'email' : 'username'}
+                maxLength={MAX_EMAIL_LENGTH}
                 className="rounded-2xl border border-slate-200/80 bg-white/60 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 dark:border-slate-700/80 dark:bg-slate-950/40 dark:text-white dark:focus:border-blue-400 dark:focus:bg-slate-950 dark:focus:ring-blue-500/10"
                 required
               />
             </div>
 
-            <div className="grid gap-1.5">
-              <label className="text-xs font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400 px-1">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="••••••••"
-                className="rounded-2xl border border-slate-200/80 bg-white/60 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 dark:border-slate-700/80 dark:bg-slate-950/40 dark:text-white dark:focus:border-blue-400 dark:focus:bg-slate-950 dark:focus:ring-blue-500/10"
-                required
-              />
-            </div>
+            {!isResetMode ? (
+              <div className="grid gap-1.5">
+                <label className="text-xs font-semibold tracking-wider uppercase text-slate-500 dark:text-slate-400 px-1">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="••••••••"
+                  autoComplete={
+                    authMode === 'login' ? 'current-password' : 'new-password'
+                  }
+                  maxLength={MAX_PASSWORD_LENGTH}
+                  className="rounded-2xl border border-slate-200/80 bg-white/60 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 dark:border-slate-700/80 dark:bg-slate-950/40 dark:text-white dark:focus:border-blue-400 dark:focus:bg-slate-950 dark:focus:ring-blue-500/10"
+                  required
+                />
+                {authMode === 'signup' ? (
+                  <p className="px-1 text-xs text-slate-500 dark:text-slate-400">
+                    At least {MIN_SIGNUP_PASSWORD_LENGTH} characters. Longer
+                    passphrases are welcome.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
 
             {errorMessage ? (
               <p className="rounded-2xl border border-red-200 bg-red-50/80 backdrop-blur px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
                 {errorMessage}
+              </p>
+            ) : null}
+
+            {infoMessage ? (
+              <p
+                className="rounded-2xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-sm text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200"
+                role="status"
+              >
+                {infoMessage}
               </p>
             ) : null}
 
@@ -364,27 +724,46 @@ export default function LoginPage() {
               {loading ? (
                 <LoaderCircle className="h-5 w-5 animate-spin" />
               ) : null}
-              {authMode === 'login' ? 'Launch Workspace' : 'Create Account'}
+              {authMode === 'login'
+                ? 'Launch Workspace'
+                : authMode === 'signup'
+                  ? 'Create Account'
+                  : 'Send reset instructions'}
             </button>
           </form>
 
-          <div className="my-6 flex items-center gap-3">
-            <div className="h-px flex-1 bg-slate-200/80 dark:bg-slate-800" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
-              or connect with
-            </span>
-            <div className="h-px flex-1 bg-slate-200/80 dark:bg-slate-800" />
-          </div>
+          {!isResetMode ? (
+            <>
+              <div className="my-6 flex items-center gap-3">
+                <div className="h-px flex-1 bg-slate-200/80 dark:bg-slate-800" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
+                  or connect with
+                </span>
+                <div className="h-px flex-1 bg-slate-200/80 dark:bg-slate-800" />
+              </div>
 
-          <button
-            type="button"
-            disabled={loading || isOffline}
-            onClick={handleGoogleLogin}
-            className="inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-200/80 bg-white/40 px-4 py-3.5 font-semibold text-slate-700 transition-all hover:bg-white/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-80 dark:border-slate-800 dark:text-slate-200 dark:bg-slate-900/40 dark:hover:bg-slate-900/80 text-sm cursor-pointer shadow-sm"
-          >
-            <GoogleIcon />
-            Sign in with Google
-          </button>
+              <button
+                type="button"
+                disabled={loading || isOffline}
+                onClick={handleGoogleLogin}
+                className="inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-200/80 bg-white/40 px-4 py-3.5 font-semibold text-slate-700 transition-all hover:bg-white/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-80 dark:border-slate-800 dark:text-slate-200 dark:bg-slate-900/40 dark:hover:bg-slate-900/80 text-sm cursor-pointer shadow-sm"
+              >
+                <GoogleIcon />
+                Sign in with Google
+              </button>
+
+              {redirectAvailable ? (
+                <button
+                  type="button"
+                  disabled={loading || isOffline}
+                  onClick={handleGoogleRedirect}
+                  className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white/60 px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-80 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:bg-slate-900"
+                >
+                  Popup failed? Try Google redirect instead
+                </button>
+              ) : null}
+            </>
+          ) : null}
 
           <Link
             to="/receiver"
@@ -394,16 +773,36 @@ export default function LoginPage() {
             Receive an image offline
           </Link>
 
-          <div className="mt-6 flex justify-center">
+          <div className="mt-6 flex flex-col items-center gap-2">
+            {!isResetMode ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode((current) =>
+                    current === 'login' ? 'signup' : 'login',
+                  )
+                  setErrorMessage('')
+                  setInfoMessage('')
+                }}
+                className="text-sm font-semibold text-blue-600 transition-all hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+              >
+                {authMode === 'login'
+                  ? 'New to ProMana? Register here'
+                  : 'Already have an account? Sign in'}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => {
-                setAuthMode((current) => (current === 'login' ? 'signup' : 'login'))
+                setAuthMode((current) =>
+                  current === 'reset' ? 'login' : 'reset',
+                )
                 setErrorMessage('')
+                setInfoMessage('')
               }}
-              className="text-sm font-semibold text-blue-600 transition-all hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+              className="text-sm font-semibold text-slate-500 transition-all hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:underline"
             >
-              {authMode === 'login' ? 'New to ProMana? Register here' : 'Already have an account? Sign in'}
+              {isResetMode ? 'Back to sign in' : 'Forgot your password?'}
             </button>
           </div>
         </div>
