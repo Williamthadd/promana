@@ -19,6 +19,7 @@ const driveFilesApi = fs.readFileSync(path.join(projectRoot, 'api/drive-files.js
 
 // Import the pure helpers (no Firebase network needed at import time).
 import {
+  getAuthDebugSuffix,
   getAuthErrorMessage,
   normalizeEmail,
   MIN_SIGNUP_PASSWORD_LENGTH,
@@ -44,12 +45,20 @@ test('signup duplicate does not confirm account existence', () => {
   assert.ok(message.toLowerCase().includes('unable to create'))
 })
 
-test('config failures do not leak Firebase Console internals to users', () => {
-  for (const code of ['auth/unauthorized-domain', 'auth/operation-not-allowed', 'auth/internal-error']) {
-    const message = getAuthErrorMessage({ code })
-    assert.doesNotMatch(message, /firebase console/i)
-    assert.doesNotMatch(message, /authorized domains/i)
-    assert.doesNotMatch(message, /\(auth\//)
+test('config failures name the code and the owner fix, without account disclosure', () => {
+  // These codes are identical for every email, so naming them cannot reveal
+  // whether an account exists — and hiding them left owners with no path to
+  // unblock users.
+  const expectations = {
+    'auth/unauthorized-domain': /authorized domains/i,
+    'auth/operation-not-allowed': /sign-in method/i,
+    'auth/internal-error': /api key/i,
+  }
+  for (const [code, fixPattern] of Object.entries(expectations)) {
+    const message = getAuthErrorMessage({ code, message: 'Something unexpected happened.' })
+    assert.match(message, new RegExp(`\\(${code}\\)`))
+    assert.match(message, fixPattern)
+    assert.doesNotMatch(message, /no account|already registered|password is incorrect/i)
   }
 })
 
@@ -68,11 +77,18 @@ test('throttling is reported truthfully even under a generic error code', () => 
     assert.equal(mapped, throttled)
   }
 
-  // A genuine config failure without throttling signals keeps the generic
-  // unavailable message.
+  // A genuine config failure without throttling signals keeps the
+  // actionable config message (with its code), not the throttling text.
+  const configMessage = getAuthErrorMessage({ code: 'auth/internal-error', message: 'Something unexpected happened.' })
+  assert.match(configMessage, /\(auth\/internal-error\)/)
+  assert.doesNotMatch(configMessage, /^Too many sign-in attempts/)
+})
+
+test('owner debug suffix stays hidden unless explicitly enabled', () => {
+  assert.equal(getAuthDebugSuffix({ code: 'auth/internal-error', message: 'boom' }, false), '')
   assert.match(
-    getAuthErrorMessage({ code: 'auth/internal-error', message: 'Something unexpected happened.' }),
-    /temporarily unavailable/i,
+    getAuthDebugSuffix({ code: 'auth/internal-error', message: 'boom' }, true),
+    /auth\/internal-error.*boom/,
   )
 })
 

@@ -21,7 +21,9 @@ import useConnectivity from '../features/offline-mode/useConnectivity'
 import useLightBackgroundColor from '../hooks/useLightBackgroundColor'
 import reportAuthFailure from '../utils/authFailureReporter'
 import {
+  getAuthDebugSuffix,
   getAuthErrorMessage,
+  isAuthDebugEnabled,
   MIN_SIGNUP_PASSWORD_LENGTH,
   normalizeEmail,
 } from '../utils/authErrors'
@@ -33,6 +35,13 @@ import {
 const MAX_EMAIL_LENGTH = 254
 const MAX_PASSWORD_LENGTH = 1024
 const VERIFICATION_RESEND_COOLDOWN_MS = 60_000
+
+// Builds the user-facing error text. Normal users see the safe message;
+// with `?debug=auth` in the URL the owner additionally sees the exact
+// Firebase code + message for support/debugging.
+function toUserError(error) {
+  return `${getAuthErrorMessage(error)}${getAuthDebugSuffix(error, isAuthDebugEnabled())}`
+}
 
 function GoogleIcon() {
   return (
@@ -157,7 +166,7 @@ export default function LoginPage() {
           return
         }
         logAuthDiagnostics(error, 'google-redirect')
-        setErrorMessage(getAuthErrorMessage(error))
+        setErrorMessage(toUserError(error))
         void recordAuthAttempt({
           uid: null,
           method: 'google-redirect',
@@ -347,7 +356,7 @@ export default function LoginPage() {
       }
     } catch (error) {
       logAuthDiagnostics(error, method)
-      setErrorMessage(getAuthErrorMessage(error))
+      setErrorMessage(toUserError(error))
       setPassword('')
 
       void recordAuthAttempt({
@@ -395,7 +404,7 @@ export default function LoginPage() {
       navigate('/dashboard', { replace: true })
     } catch (error) {
       logAuthDiagnostics(error, 'google')
-      setErrorMessage(getAuthErrorMessage(error))
+      setErrorMessage(toUserError(error))
 
       // Popups fail in hardened browsers (blocked third-party cookies,
       // strict popup blockers, some in-app webviews). Offer redirect as a
@@ -439,7 +448,7 @@ export default function LoginPage() {
       // Navigation leaves the page; the result is consumed on return.
     } catch (error) {
       logAuthDiagnostics(error, 'google-redirect-start')
-      setErrorMessage(getAuthErrorMessage(error))
+      setErrorMessage(toUserError(error))
       void recordAuthAttempt({
         uid: null,
         method: 'google-redirect',

@@ -82,15 +82,48 @@ export function getAuthErrorMessage(error) {
     return 'Additional verification is required for this account. Complete the second step to continue.'
   }
 
-  if (
-    code === 'auth/unauthorized-domain' ||
-    code === 'auth/operation-not-allowed' ||
-    code === 'auth/internal-error'
-  ) {
-    return 'Sign-in is temporarily unavailable. Please try again, and if it keeps happening try the redirect option or contact support.'
+  // Project-configuration failures. These codes are identical for every
+  // email address, so naming them does NOT reveal whether an account exists.
+  // They are shown explicitly (instead of a generic "unavailable" message)
+  // because a generic message leaves the owner with no path to unblock
+  // users — and the underlying rejection comes from Firebase either way.
+  if (code === 'auth/unauthorized-domain') {
+    return 'Sign-in is blocked for this domain (auth/unauthorized-domain). Owner fix: Firebase Console → Authentication → Settings → Authorized domains → add the domain you are signing in from.'
+  }
+
+  if (code === 'auth/operation-not-allowed') {
+    return 'This sign-in method is disabled for the project (auth/operation-not-allowed). Owner fix: Firebase Console → Authentication → Sign-in method → enable Email/Password and Google.'
+  }
+
+  if (code === 'auth/internal-error') {
+    return 'Sign-in failed before completing (auth/internal-error). If wrong passwords were retried many times, wait a few minutes without retrying, then try once. Otherwise, owner checks: the Firebase API key must allow the Identity Toolkit + Secure Token APIs, the OAuth consent screen must be configured, and the browser must allow third-party cookies and popups.'
   }
 
   return 'Authentication failed. Please try again.'
+}
+
+// Owner-only diagnostics suffix. Appended to the UI error only when the URL
+// carries `?debug=auth`, so the owner can paste the exact Firebase error
+// without opening devtools, while normal users never see internals.
+export function getAuthDebugSuffix(error, debugEnabled) {
+  if (!debugEnabled) {
+    return ''
+  }
+
+  const code = error?.code ?? 'unknown-code'
+  const message = String(error?.message ?? 'no message').slice(0, 300)
+  return `\n\nDetails: ${code} — ${message}`
+}
+
+export function isAuthDebugEnabled() {
+  try {
+    return (
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('debug') === 'auth'
+    )
+  } catch {
+    return false
+  }
 }
 
 export function normalizeEmail(value) {
