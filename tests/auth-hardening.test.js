@@ -121,7 +121,23 @@ test('signup enforces a strong minimum password length', () => {
 test('Google flow has redirect fallback and consumes redirect results', () => {
   assert.ok(loginPage.includes('signInWithRedirect'))
   assert.ok(loginPage.includes('getRedirectResult'))
-  assert.ok(loginPage.includes('Try Google redirect instead'))
+  assert.ok(loginPage.includes('Continue with Google redirect'))
+})
+
+test('Google sign-in uses incremental authorization (no Drive scope at login)', () => {
+  // The restricted Drive scope at sign-in time can fail the whole Google
+  // consent and break login. It is requested later in connectGoogleDrive().
+  assert.ok(!loginPage.includes('addScope'))
+  assert.ok(!loginPage.includes('GOOGLE_DRIVE_SCOPE'))
+  assert.ok(!loginPage.includes('saveGoogleDriveAccessToken'))
+  assert.ok(driveAuth.includes('addScope'))
+})
+
+test('disabled accounts get an actionable message', () => {
+  assert.match(
+    getAuthErrorMessage({ code: 'auth/user-disabled' }),
+    /\(auth\/user-disabled\)/,
+  )
 })
 
 test('auth attempts are guarded against concurrent submission', () => {

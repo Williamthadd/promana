@@ -54,6 +54,10 @@ export function getAuthErrorMessage(error) {
     return 'Unable to create that account. If you already have an account, try signing in.'
   }
 
+  if (code === 'auth/user-disabled') {
+    return 'This account has been disabled (auth/user-disabled). Contact the project owner to re-enable it in Firebase Console → Authentication → Users.'
+  }
+
   if (code === 'auth/weak-password') {
     return `Choose a stronger password with at least ${MIN_SIGNUP_PASSWORD_LENGTH} characters. Longer passphrases are welcome.`
   }

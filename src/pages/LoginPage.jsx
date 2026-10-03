@@ -27,10 +27,6 @@ import {
   MIN_SIGNUP_PASSWORD_LENGTH,
   normalizeEmail,
 } from '../utils/authErrors'
-import {
-  GOOGLE_DRIVE_SCOPE,
-  saveGoogleDriveAccessToken,
-} from '../utils/googleDriveAuth'
 
 const MAX_EMAIL_LENGTH = 254
 const MAX_PASSWORD_LENGTH = 1024
@@ -107,7 +103,6 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState('')
   const [infoMessage, setInfoMessage] = useState('')
   const [loading, setLoading] = useState(false)
-  const [redirectAvailable, setRedirectAvailable] = useState(false)
   const [verificationNotice, setVerificationNotice] = useState('')
   const [verificationBusy, setVerificationBusy] = useState(false)
   const [lastVerificationSentAt, setLastVerificationSentAt] = useState(0)
@@ -124,12 +119,13 @@ export default function LoginPage() {
     resetLightBackgroundColor,
   } = useLightBackgroundColor()
   const googleProvider = useMemo(() => {
+    // Incremental authorization: sign-in requests NO Drive scope. The full
+    // Drive scope is a restricted OAuth scope that can make the consent
+    // screen fail (unverified app / access denied) and take down the entire
+    // Google login with it. Drive access is requested later, only when the
+    // user connects Drive, via connectGoogleDrive() which re-authenticates
+    // with the scope (see src/utils/googleDriveAuth.js).
     const provider = new GoogleAuthProvider()
-    // Full Drive scope is required because users can attach ANY existing
-    // folder by pasting its ID/URL (verified server-side). drive.file would
-    // only cover files created by this app and would break that flow.
-    // See SECURITY_AUTH_AUDIT.md. Revisit if a Drive picker is adopted.
-    provider.addScope(GOOGLE_DRIVE_SCOPE)
     return provider
   }, [])
 
@@ -147,14 +143,10 @@ export default function LoginPage() {
         if (cancelled || !result) {
           return
         }
-        const googleCredential =
-          GoogleAuthProvider.credentialFromResult(result)
-        if (googleCredential?.accessToken) {
-          saveGoogleDriveAccessToken(
-            result.user.uid,
-            googleCredential.accessToken,
-          )
-        }
+        // Deliberately no Drive token is stored here: the login provider
+        // carries no Drive scope, so any access token from this flow must
+        // never be reused as a Drive credential. Drive is connected later
+        // with its own scoped re-authentication.
         void recordAuthAttempt({
           uid: result.user.uid,
           method: 'google-redirect',
@@ -387,14 +379,8 @@ export default function LoginPage() {
 
     try {
       const credentials = await signInWithPopup(auth, googleProvider)
-      const googleCredential =
-        GoogleAuthProvider.credentialFromResult(credentials)
-      if (googleCredential?.accessToken) {
-        saveGoogleDriveAccessToken(
-          credentials.user.uid,
-          googleCredential.accessToken,
-        )
-      }
+      // Deliberately no Drive token is stored here (see redirect handler
+      // above): login carries no Drive scope.
       void recordAuthAttempt({
         uid: credentials.user.uid,
         method: 'google',
@@ -405,18 +391,6 @@ export default function LoginPage() {
     } catch (error) {
       logAuthDiagnostics(error, 'google')
       setErrorMessage(toUserError(error))
-
-      // Popups fail in hardened browsers (blocked third-party cookies,
-      // strict popup blockers, some in-app webviews). Offer redirect as a
-      // compatible fallback instead of leaving the user stuck.
-      if (
-        error?.code === 'auth/popup-blocked' ||
-        error?.code === 'auth/internal-error' ||
-        error?.code === 'auth/popup-closed-by-user' ||
-        error?.code === 'auth/cancelled-popup-request'
-      ) {
-        setRedirectAvailable(true)
-      }
 
       void recordAuthAttempt({
         uid: null,
@@ -761,16 +735,14 @@ export default function LoginPage() {
                 Sign in with Google
               </button>
 
-              {redirectAvailable ? (
-                <button
-                  type="button"
-                  disabled={loading || isOffline}
-                  onClick={handleGoogleRedirect}
-                  className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white/60 px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-80 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:bg-slate-900"
-                >
-                  Popup failed? Try Google redirect instead
-                </button>
-              ) : null}
+              <button
+                type="button"
+                disabled={loading || isOffline}
+                onClick={handleGoogleRedirect}
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white/60 px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-80 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:bg-slate-900"
+              >
+                Trouble with the popup? Continue with Google redirect
+              </button>
             </>
           ) : null}
 
