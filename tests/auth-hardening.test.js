@@ -52,7 +52,6 @@ test('config failures name the code and the owner fix, without account disclosur
   const expectations = {
     'auth/unauthorized-domain': /authorized domains/i,
     'auth/operation-not-allowed': /sign-in method/i,
-    'auth/internal-error': /api key/i,
   }
   for (const [code, fixPattern] of Object.entries(expectations)) {
     const message = getAuthErrorMessage({ code, message: 'Something unexpected happened.' })
@@ -60,6 +59,14 @@ test('config failures name the code and the owner fix, without account disclosur
     assert.match(message, fixPattern)
     assert.doesNotMatch(message, /no account|already registered|password is incorrect/i)
   }
+
+  // `auth/internal-error` intentionally has no dedicated message (owner
+  // request): it falls through to the generic failure text. This asserts the
+  // fallthrough — it does not and cannot change the Firebase rejection.
+  assert.equal(
+    getAuthErrorMessage({ code: 'auth/internal-error', message: 'Something unexpected happened.' }),
+    'Authentication failed. Please try again.',
+  )
 })
 
 test('throttling is reported truthfully even under a generic error code', () => {
@@ -77,11 +84,12 @@ test('throttling is reported truthfully even under a generic error code', () => 
     assert.equal(mapped, throttled)
   }
 
-  // A genuine config failure without throttling signals keeps the
-  // actionable config message (with its code), not the throttling text.
-  const configMessage = getAuthErrorMessage({ code: 'auth/internal-error', message: 'Something unexpected happened.' })
-  assert.match(configMessage, /\(auth\/internal-error\)/)
-  assert.doesNotMatch(configMessage, /^Too many sign-in attempts/)
+  // An internal-error WITHOUT throttling signals falls through to the
+  // generic message (no dedicated internal-error text by owner request).
+  assert.equal(
+    getAuthErrorMessage({ code: 'auth/internal-error', message: 'Something unexpected happened.' }),
+    'Authentication failed. Please try again.',
+  )
 })
 
 test('owner debug suffix stays hidden unless explicitly enabled', () => {

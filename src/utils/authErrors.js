@@ -95,9 +95,11 @@ export function getAuthErrorMessage(error) {
     return 'This sign-in method is disabled for the project (auth/operation-not-allowed). Owner fix: Firebase Console → Authentication → Sign-in method → enable Email/Password and Google.'
   }
 
-  if (code === 'auth/internal-error') {
-    return 'Sign-in failed before completing (auth/internal-error). If wrong passwords were retried many times, wait a few minutes without retrying, then try once. Otherwise, owner checks: the Firebase API key must allow the Identity Toolkit + Secure Token APIs, the OAuth consent screen must be configured, and the browser must allow third-party cookies and popups.'
-  }
+  // NOTE: no dedicated message for `auth/internal-error` by owner request.
+  // It falls through to the generic message below. This changes ONLY the
+  // displayed sentence — Firebase has already rejected the sign-in at this
+  // point, so no message mapping can grant or restore access. The rejection
+  // cause must still be resolved in Firebase/Google Cloud configuration.
 
   return 'Authentication failed. Please try again.'
 }
