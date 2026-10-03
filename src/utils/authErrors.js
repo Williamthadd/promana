@@ -5,8 +5,39 @@ export const MIN_SIGNUP_PASSWORD_LENGTH = 12
 
 // Enumeration-safe error messages: login failures never reveal whether the
 // email exists. Infrastructure details stay in developer logs, never in UI.
+//
+// NOTE on throttling: Firebase enforces brute-force protection server-side
+// ("blocked all requests from this device due to unusual activity"). No
+// client code can lift that block — and none of ours adds to it: there is no
+// client-side attempt counter or lockout, the submit guard resets after every
+// attempt, and the /api/log-auth-error rate limit only drops log writes.
+// Firebase usually reports throttling as `auth/too-many-requests`, but the
+// same condition sometimes surfaces under `auth/internal-error`, so the raw
+// message is also checked for throttling signals below.
+const THROTTLING_MESSAGE =
+  'Too many sign-in attempts. Sign-in is briefly paused to protect your account. Wait a few minutes without retrying, then try again once.'
+
+function looksLikeThrottling(error, code) {
+  if (code === 'auth/too-many-requests') {
+    return true
+  }
+
+  const message = String(error?.message ?? '').toLowerCase()
+  return (
+    message.includes('too many') ||
+    message.includes('too_many') ||
+    message.includes('blocked all requests') ||
+    (message.includes('block') && message.includes('unusual activity')) ||
+    (message.includes('try again later') && message.includes('device'))
+  )
+}
+
 export function getAuthErrorMessage(error) {
   const code = error?.code ?? ''
+
+  if (looksLikeThrottling(error, code)) {
+    return THROTTLING_MESSAGE
+  }
 
   if (
     code === 'auth/invalid-credential' ||
@@ -45,10 +76,6 @@ export function getAuthErrorMessage(error) {
 
   if (code === 'auth/network-request-failed') {
     return 'The network request failed while contacting the sign-in service. Check your connection and try again.'
-  }
-
-  if (code === 'auth/too-many-requests') {
-    return 'Too many attempts. Please wait a little while and try again.'
   }
 
   if (code === 'auth/multi-factor-auth-required') {

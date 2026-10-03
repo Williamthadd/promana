@@ -53,6 +53,36 @@ test('config failures do not leak Firebase Console internals to users', () => {
   }
 })
 
+test('throttling is reported truthfully even under a generic error code', () => {
+  const throttled = getAuthErrorMessage({ code: 'auth/too-many-requests' })
+  assert.match(throttled, /too many sign-in attempts/i)
+  assert.match(throttled, /without retrying/i)
+
+  // Firebase sometimes surfaces the same block as internal-error.
+  for (const message of [
+    'Firebase: We have blocked all requests from this device due to unusual activity. Try again later. (auth/too-many-requests).',
+    'Firebase: We have blocked all requests from this device due to unusual activity. Try again later. (auth/internal-error).',
+    'TOO_MANY_ATTEMPTS_TRY_LATER',
+  ]) {
+    const mapped = getAuthErrorMessage({ code: 'auth/internal-error', message })
+    assert.equal(mapped, throttled)
+  }
+
+  // A genuine config failure without throttling signals keeps the generic
+  // unavailable message.
+  assert.match(
+    getAuthErrorMessage({ code: 'auth/internal-error', message: 'Something unexpected happened.' }),
+    /temporarily unavailable/i,
+  )
+})
+
+test('no client-side login lockout exists', () => {
+  // The submit guard must reset after every attempt (finally), and there
+  // must be no attempt counter / lockout timer in the login flow.
+  assert.match(loginPage, /finally\s*\{[\s\S]*?releaseGuard\(\)/)
+  assert.doesNotMatch(loginPage, /attempts\s*\+\+|attemptCount|lockoutUntil|lockedUntil|MAX_ATTEMPTS/i)
+})
+
 test('email is normalized before Firebase calls', () => {
   assert.equal(normalizeEmail('  Dev@Example.com  '), 'Dev@Example.com')
   assert.ok(loginPage.includes('normalizeEmail(email)'))
