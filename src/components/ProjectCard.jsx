@@ -664,10 +664,9 @@ export default function ProjectCard({
     window.open(targetUrl, '_blank', 'noopener,noreferrer')
   }
 
-  async function handleSelectEditor(editor) {
+  function handleSelectEditor(editor) {
     setSelectedEditorScheme(editor.scheme)
     setIsEditorPickerOpen(false)
-    await handleOpenEditor(editor)
   }
 
   async function commitPath() {
@@ -1253,6 +1252,22 @@ export default function ProjectCard({
 
               <button
                 type="button"
+                disabled={!selectedEditor}
+                onClick={() => {
+                  if (selectedEditor) {
+                    void handleCopyNewWindowCommand(selectedEditor)
+                  }
+                  setIsEditorPickerOpen(false)
+                }}
+                className="inline-flex items-center justify-center border-l border-white/20 bg-blue-600 px-2.5 text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                aria-label={`Copy ${selectedEditor?.name ?? selectedEditor?.label?.replace('Open in ', '') ?? 'editor'} new-window command`}
+                title={`Copy ${operatingSystemLabel}-compatible new-window command`}
+              >
+                <Copy className="h-4 w-4" />
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setIsEditorPickerOpen((current) => !current)}
                 className="inline-flex items-center justify-center rounded-r-xl border-l border-white/20 bg-blue-600 px-3 text-white transition hover:bg-blue-700"
                 aria-label="Choose editor"
@@ -1269,9 +1284,7 @@ export default function ProjectCard({
                       <button
                         key={editor.scheme}
                         type="button"
-                        onClick={() => {
-                          void handleSelectEditor(editor)
-                        }}
+                        onClick={() => handleSelectEditor(editor)}
                         className={`w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
                           isSelected
                             ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200'
