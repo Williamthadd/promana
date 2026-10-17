@@ -154,6 +154,17 @@ check would be bypassable, and proper allowlisting requires Identity Platform
 blocking functions / custom claims (documented as future option). No fragile
 `if (email === ...)` gate was added.
 
+> Update (2026-10-17): the email/password self-registration form was removed
+> from `LoginPage.jsx` by owner request. The page now offers only sign-in and
+> password reset, and a first-time Google sign-in is rejected: the handler
+> inspects `getAdditionalUserInfo(...).isNewUser`, deletes the auto-created
+> account, and signs out. This remains a client/UX change, **not** a hard
+> server-side closure: Firebase still permits programmatic account creation via
+> the public API key, and the `isNewUser` deletion is best-effort (a refused
+> `deleteUser` falls back to `signOut` and may leave an orphaned account). A
+> true closed-registration boundary still requires the Identity Platform
+> blocking functions / custom claims described above.
+
 ## 5. Drive scope decision
 
 KEEP `https://www.googleapis.com/auth/drive`. The app lets users paste ANY

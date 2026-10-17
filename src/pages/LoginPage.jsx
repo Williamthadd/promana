@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   GoogleAuthProvider,
-  createUserWithEmailAndPassword,
+  deleteUser,
+  getAdditionalUserInfo,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signOut,
 } from 'firebase/auth'
 import { addDoc, collection, Timestamp } from 'firebase/firestore'
 import { LoaderCircle, QrCode, WifiOff } from 'lucide-react'
@@ -22,7 +24,6 @@ import {
   getAuthDebugSuffix,
   getAuthErrorMessage,
   isAuthDebugEnabled,
-  MIN_SIGNUP_PASSWORD_LENGTH,
   normalizeEmail,
 } from '../utils/authErrors'
 
@@ -174,7 +175,7 @@ export default function LoginPage() {
 
   function showOfflineAuthMessage() {
     setErrorMessage(
-      'You are offline. A new sign-in or account registration needs an internet connection. Previously cached workspace data opens automatically only while your existing Firebase session is still signed in on this device.',
+      'You are offline. A new sign-in needs an internet connection. Previously cached workspace data opens automatically only while your existing Firebase session is still signed in on this device.',
     )
   }
 
@@ -208,14 +209,10 @@ export default function LoginPage() {
     setInfoMessage('')
 
     const cleanEmail = normalizeEmail(email)
-    const method = authMode === 'login' ? 'email-password' : 'email-signup'
+    const method = 'email-password'
 
     if (!isPlausibleEmail(cleanEmail)) {
-      setErrorMessage(
-        authMode === 'login'
-          ? 'Unable to sign in with those credentials.'
-          : 'Enter a valid email address to create an account.',
-      )
+      setErrorMessage('Unable to sign in with those credentials.')
       void recordAuthAttempt({
         uid: null,
         method,
@@ -226,16 +223,8 @@ export default function LoginPage() {
       return
     }
 
-    if (
-      !password ||
-      password.length > MAX_PASSWORD_LENGTH ||
-      (authMode === 'signup' && password.length < MIN_SIGNUP_PASSWORD_LENGTH)
-    ) {
-      setErrorMessage(
-        authMode === 'signup'
-          ? `Choose a stronger password with at least ${MIN_SIGNUP_PASSWORD_LENGTH} characters. Longer passphrases are welcome.`
-          : 'Unable to sign in with those credentials.',
-      )
+    if (!password || password.length > MAX_PASSWORD_LENGTH) {
+      setErrorMessage('Unable to sign in with those credentials.')
       void recordAuthAttempt({
         uid: null,
         method,
@@ -248,60 +237,31 @@ export default function LoginPage() {
     }
 
     try {
-      if (authMode === 'login') {
-        const credentials = await signInWithEmailAndPassword(
-          auth,
-          cleanEmail,
-          password,
+      const credentials = await signInWithEmailAndPassword(
+        auth,
+        cleanEmail,
+        password,
+      )
+      setPassword('')
+
+      if (
+        !credentials.user.emailVerified &&
+        credentials.user.providerData?.some((p) => p.providerId === 'password')
+      ) {
+        setVerificationNotice(
+          'Your email address is not verified yet. Some features stay limited until verification. Check your inbox, or resend below.',
         )
-        setPassword('')
-
-        if (
-          !credentials.user.emailVerified &&
-          credentials.user.providerData?.some((p) => p.providerId === 'password')
-        ) {
-          setVerificationNotice(
-            'Your email address is not verified yet. Some features stay limited until verification. Check your inbox, or resend below.',
-          )
-        }
-
-        // Authentication is the primary action. Audit logging is
-        // best-effort and must never delay entry to a successfully opened app.
-        void recordAuthAttempt({
-          uid: credentials.user.uid,
-          method,
-          success: true,
-        })
-
-        navigate('/dashboard', { replace: true })
-      } else {
-        const credentials = await createUserWithEmailAndPassword(
-          auth,
-          cleanEmail,
-          password,
-        )
-        setPassword('')
-
-        try {
-          await sendEmailVerification(credentials.user)
-          setLastVerificationSentAt(Date.now())
-          setVerificationNotice(
-            'Account created. We sent a verification email — confirm it before relying on email features. You can continue to the workspace.',
-          )
-        } catch {
-          setVerificationNotice(
-            'Account created, but the verification email could not be sent right now. Use Resend below.',
-          )
-        }
-
-        void recordAuthAttempt({
-          uid: credentials.user.uid,
-          method,
-          success: true,
-        })
-
-        navigate('/dashboard', { replace: true })
       }
+
+      // Authentication is the primary action. Audit logging is
+      // best-effort and must never delay entry to a successfully opened app.
+      void recordAuthAttempt({
+        uid: credentials.user.uid,
+        method,
+        success: true,
+      })
+
+      navigate('/dashboard', { replace: true })
     } catch (error) {
       logAuthDiagnostics(error, method)
       setErrorMessage(toUserError(error))
@@ -335,6 +295,41 @@ export default function LoginPage() {
 
     try {
       const credentials = await signInWithPopup(auth, googleProvider)
+
+      // Registration is closed. Firebase silently creates a brand-new Auth
+      // account the first time a Google user signs in; that is the only
+      // remaining path for an unregistered email to enter ProMana. Reject a
+      // first-time account and remove it so the address stays unregistered.
+      // Existing accounts are unaffected (isNewUser is false on later
+      // sign-ins).
+      const additionalInfo = getAdditionalUserInfo(credentials)
+
+      if (additionalInfo?.isNewUser) {
+        try {
+          // Deleting the current user also ends the session.
+          await deleteUser(credentials.user)
+        } catch {
+          // If deletion is refused, still drop the session so the blocked
+          // sign-in cannot reach the workspace.
+          try {
+            await signOut(auth)
+          } catch {
+            // Best-effort only.
+          }
+        }
+
+        setErrorMessage(
+          'This email address is not registered with ProMana. New accounts cannot be created here.',
+        )
+        void recordAuthAttempt({
+          uid: null,
+          method: 'google',
+          success: false,
+          error: { code: 'auth/registration-closed' },
+        })
+        return
+      }
+
       // Deliberately no Drive token is stored here (see redirect handler
       // above): login carries no Drive scope.
       void recordAuthAttempt({
@@ -511,11 +506,7 @@ export default function LoginPage() {
               Developer Workspace Launcher
             </p>
             <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-              {authMode === 'login'
-                ? 'Welcome back'
-                : authMode === 'signup'
-                  ? 'Create your account'
-                  : 'Reset your password'}
+              {authMode === 'login' ? 'Welcome back' : 'Reset your password'}
             </h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Manage your local environments, notes, and targets.
@@ -594,19 +585,11 @@ export default function LoginPage() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="••••••••"
-                  autoComplete={
-                    authMode === 'login' ? 'current-password' : 'new-password'
-                  }
+                  autoComplete="current-password"
                   maxLength={MAX_PASSWORD_LENGTH}
                   className="rounded-2xl border border-slate-200/80 bg-white/60 px-4 py-3.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 dark:border-slate-700/80 dark:bg-slate-950/40 dark:text-white dark:focus:border-blue-400 dark:focus:bg-slate-950 dark:focus:ring-blue-500/10"
                   required
                 />
-                {authMode === 'signup' ? (
-                  <p className="px-1 text-xs text-slate-500 dark:text-slate-400">
-                    At least {MIN_SIGNUP_PASSWORD_LENGTH} characters. Longer
-                    passphrases are welcome.
-                  </p>
-                ) : null}
               </div>
             ) : null}
 
@@ -633,11 +616,7 @@ export default function LoginPage() {
               {loading ? (
                 <LoaderCircle className="h-5 w-5 animate-spin" />
               ) : null}
-              {authMode === 'login'
-                ? 'Launch Workspace'
-                : authMode === 'signup'
-                  ? 'Create Account'
-                  : 'Send reset instructions'}
+              {authMode === 'login' ? 'Launch Workspace' : 'Send reset instructions'}
             </button>
           </form>
 
@@ -672,23 +651,6 @@ export default function LoginPage() {
           </Link>
 
           <div className="mt-6 flex flex-col items-center gap-2">
-            {!isResetMode ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode((current) =>
-                    current === 'login' ? 'signup' : 'login',
-                  )
-                  setErrorMessage('')
-                  setInfoMessage('')
-                }}
-                className="text-sm font-semibold text-blue-600 transition-all hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
-              >
-                {authMode === 'login'
-                  ? 'New to ProMana? Register here'
-                  : 'Already have an account? Sign in'}
-              </button>
-            ) : null}
             <button
               type="button"
               onClick={() => {

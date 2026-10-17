@@ -22,7 +22,6 @@ import {
   getAuthDebugSuffix,
   getAuthErrorMessage,
   normalizeEmail,
-  MIN_SIGNUP_PASSWORD_LENGTH,
 } from '../src/utils/authErrors.js'
 
 test('login failures are enumeration-safe and generic', () => {
@@ -39,7 +38,9 @@ test('login failures are enumeration-safe and generic', () => {
   assert.doesNotMatch(getAuthErrorMessage({ code: 'auth/wrong-password' }), /password is incorrect/i)
 })
 
-test('signup duplicate does not confirm account existence', () => {
+test('duplicate-account errors never confirm account existence', () => {
+  // The app no longer offers email signup, but the error catalog stays
+  // enumeration-safe for any account-creation path that reports this code.
   const message = getAuthErrorMessage({ code: 'auth/email-already-in-use' })
   assert.doesNotMatch(message, /already registered/i)
   assert.ok(message.toLowerCase().includes('unable to create'))
@@ -112,10 +113,28 @@ test('email is normalized before Firebase calls', () => {
   assert.ok(loginPage.includes('normalizeEmail(email)'))
 })
 
-test('signup enforces a strong minimum password length', () => {
-  assert.ok(MIN_SIGNUP_PASSWORD_LENGTH >= 12)
-  assert.ok(loginPage.includes('MIN_SIGNUP_PASSWORD_LENGTH'))
-  assert.ok(loginPage.includes('At least'))
+test('email/password self-registration is removed from the login page', () => {
+  // Registration was removed by owner request: new users can no longer
+  // create an email/password account through the app. Existing users can
+  // still sign in and reset a password.
+  assert.ok(!loginPage.includes('createUserWithEmailAndPassword'))
+  assert.ok(!loginPage.includes('signup'))
+  assert.ok(!loginPage.includes('signUp'))
+  assert.ok(!loginPage.includes('Register here'))
+  assert.ok(!loginPage.includes('Create Account'))
+  assert.ok(!loginPage.includes('new-password'))
+})
+
+test('first-time Google sign-ins are blocked (registration closed)', () => {
+  // Google sign-in auto-creates an Auth account on first use; that is the
+  // only path left for an unregistered email to enter. The handler must
+  // detect a new user, remove the auto-created account, and sign out.
+  assert.ok(loginPage.includes('getAdditionalUserInfo'))
+  assert.ok(loginPage.includes('isNewUser'))
+  assert.ok(loginPage.includes('deleteUser'))
+  assert.ok(loginPage.includes('signOut'))
+  assert.ok(loginPage.includes('registration-closed'))
+  assert.ok(loginPage.includes('not registered with ProMana'))
 })
 
 test('Google sign-in is popup-only with no redirect UI', () => {

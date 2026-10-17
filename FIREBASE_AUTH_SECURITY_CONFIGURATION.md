@@ -16,11 +16,13 @@ be set in consoles. Verify each before calling Google sign-in healthy.
    The UI no longer distinguishes missing vs wrong passwords, but this
    console toggle is the real control — verify it is ON.
 4. **Password policy.** Set minimum length **12**, require the strongest
-   preset your plan allows. App code enforces 12 on signup; Firebase must
-   agree server-side.
+   preset your plan allows. The app no longer offers email signup, but
+   Firebase must still enforce the policy server-side for any account created
+   outside the UI (console, Admin SDK, Google-linked accounts).
 5. **Email templates.** Confirm sender, action-URL domain, and that
-   verification/reset links land on an authorized domain. Test signup →
-   inbox → link → `handleRefreshVerification`.
+   verification/reset links land on an authorized domain. Test reset (or
+   resend verification from an existing unverified account) → inbox → link →
+   `handleRefreshVerification`.
 6. **Users.** Confirm the test account exists, is enabled (not disabled/
    deleted), and its provider list matches the sign-in method used.
 
@@ -66,7 +68,8 @@ advanced quotas/abuse controls. Each needs console enablement + client UX
 
 ## F. Smoke test after configuration
 
-1. Email signup (12+ char pw) → verification email arrives → link works.
+1. Existing-account email sign-in → (if unverified) Resend verification →
+   link works.
 2. Login wrong password AND unknown email → identical generic message.
 3. Password reset for unknown address → same generic message, no email sent.
 4. Google popup success; with popup blocker → redirect fallback succeeds.
