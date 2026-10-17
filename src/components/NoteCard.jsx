@@ -513,9 +513,38 @@ export default function NoteCard({
             </button>
             <button
               type="button"
-              onClick={() => setIsConfirmOpen(true)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-red-500/40 dark:hover:bg-red-500/10 dark:hover:text-red-200"
-              aria-label="Delete note"
+              onClick={() => {
+                if (isLocked) {
+                  handleLockedAction()
+                  return
+                }
+                if (!isContentVisible) {
+                  addToast(
+                    "Reveal the note content before deleting it.",
+                    "info",
+                  )
+                  return
+                }
+                setIsConfirmOpen(true)
+              }}
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition ${
+                !isContentVisible
+                  ? "cursor-not-allowed border-gray-200 text-slate-300 dark:border-slate-800 dark:text-slate-600"
+                  : "border-gray-200 text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-red-500/40 dark:hover:bg-red-500/10 dark:hover:text-red-200"
+              }`}
+              aria-label={
+                isContentVisible
+                  ? "Delete note"
+                  : "Delete note (reveal the note content first)"
+              }
+              aria-disabled={!isContentVisible || undefined}
+              title={
+                isContentVisible
+                  ? "Delete note"
+                  : isLocked
+                    ? "This hidden note is locked on this device."
+                    : "Reveal the note content before deleting it."
+              }
             >
               <Trash2 className="h-4.5 w-4.5" />
             </button>
