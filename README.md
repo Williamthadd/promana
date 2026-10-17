@@ -60,6 +60,8 @@ npm install
 ### 3. Environment Setup
 Copy `.env.example` to `.env` and configure Firebase plus the server-only API values. The app does not require a Google Drive client secret or refresh token.
 
+The AI Workspace is controlled by the `VITE_IS_ACTIVATE_AI_WORKSPACE` flag. It defaults to enabled when unset; set it to `false` to hide Ask AI for every user, which replaces the workspace prompt with an "AI Workspace is currently unavailable" notice and disables all AI interactions.
+
 ### 4. Google Drive Setup
 The Docs & Images workspace stores Firestore metadata and Drive folder settings under each user. Binary files are uploaded to the private Google Drive folder selected by that user.
 

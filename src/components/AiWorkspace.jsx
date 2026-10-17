@@ -13,6 +13,7 @@ import {
   Copy,
   Check,
   WifiOff,
+  PowerOff,
 } from 'lucide-react'
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'motion/react'
@@ -28,6 +29,26 @@ import { tokenizeCode } from '../utils/codeHighlight'
 // Daily credits limit definition
 const DAILY_LIMIT = 15
 const LEGACY_CHAT_HISTORY_KEY = 'proman-ai-chat-history'
+
+// Feature flag: set `VITE_IS_ACTIVATE_AI_WORKSPACE=false` in the environment to
+// switch the whole AI Workspace off for every user. Any other value (including
+// unset) keeps the feature enabled, so existing deployments are unaffected.
+// Vite only exposes `VITE_`-prefixed variables to browser code, so the VITE_
+// name is the one that actually reaches this component.
+function isAiWorkspaceActivated(value) {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return true
+  }
+
+  return !['false', '0', 'off', 'no', 'disabled'].includes(
+    String(value).trim().toLowerCase(),
+  )
+}
+
+const IS_ACTIVATE_AI_WORKSPACE = isAiWorkspaceActivated(
+  import.meta.env.VITE_IS_ACTIVATE_AI_WORKSPACE ??
+    import.meta.env.IS_ACTIVATE_AI_WORKSPACE,
+)
 
 function getChatHistoryStorageKey(userId) {
   return userId ? `${LEGACY_CHAT_HISTORY_KEY}:${userId}` : null
@@ -159,6 +180,7 @@ export default function AiWorkspace({
   const remainingCredits = Math.max(0, DAILY_LIMIT - creditsUsed)
   const usageUnavailable = usageLoading || Boolean(usageError)
   const aiInteractionDisabled =
+    !IS_ACTIVATE_AI_WORKSPACE ||
     !cloudAvailable || loading || usageUnavailable || isRestoring
   const chatEndRef = useRef(null)
 
@@ -222,6 +244,11 @@ export default function AiWorkspace({
     if (e) e.preventDefault()
     const activePrompt = customPrompt || prompt
     if (!activePrompt.trim()) return
+
+    if (!IS_ACTIVATE_AI_WORKSPACE) {
+      addToast('AI Workspace is currently unavailable.', 'info')
+      return
+    }
 
     if (!cloudAvailable) {
       addToast(
@@ -478,7 +505,7 @@ export default function AiWorkspace({
             <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Daily API Credits</h3>
             <div className="mt-4 flex items-baseline gap-2">
               <span className="text-4xl font-black text-slate-900 dark:text-white">
-                {usageLoading ? '—' : remainingCredits}
+                {usageLoading || !IS_ACTIVATE_AI_WORKSPACE ? '—' : remainingCredits}
               </span>
               <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">/ {DAILY_LIMIT} remaining</span>
             </div>
@@ -493,11 +520,22 @@ export default function AiWorkspace({
                     ? 'bg-amber-500'
                     : 'bg-blue-600'
                 }`}
-                style={{ width: `${usageLoading ? 0 : Math.min(100, (creditsUsed / DAILY_LIMIT) * 100)}%` }}
+                style={{ width: `${usageLoading || !IS_ACTIVATE_AI_WORKSPACE ? 0 : Math.min(100, (creditsUsed / DAILY_LIMIT) * 100)}%` }}
               />
             </div>
 
-            {!cloudAvailable ? (
+            {!IS_ACTIVATE_AI_WORKSPACE ? (
+              <div
+                className="mt-4 flex gap-2 rounded-2xl bg-slate-100 p-4 text-xs text-slate-600 dark:bg-slate-800/60 dark:text-slate-300"
+                role="status"
+              >
+                <PowerOff className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>
+                  <strong>AI Workspace is unavailable.</strong> The ProMana
+                  Assistant has been disabled for this environment.
+                </span>
+              </div>
+            ) : !cloudAvailable ? (
               <div
                 className="mt-4 flex gap-2 rounded-2xl bg-amber-50 p-4 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-200"
                 role="status"
@@ -557,17 +595,25 @@ export default function AiWorkspace({
             aria-live="polite"
           >
             <span className="relative flex h-2.5 w-2.5">
-              {cloudAvailable ? (
+              {cloudAvailable && IS_ACTIVATE_AI_WORKSPACE ? (
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
               ) : null}
               <span
                 className={`relative inline-flex h-2.5 w-2.5 rounded-full ${
-                  cloudAvailable ? 'bg-emerald-500' : 'bg-amber-500'
+                  !IS_ACTIVATE_AI_WORKSPACE
+                    ? 'bg-slate-400'
+                    : cloudAvailable
+                      ? 'bg-emerald-500'
+                      : 'bg-amber-500'
                 }`}
               />
             </span>
             <span className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-              {cloudAvailable ? 'AI Interactive Shell' : 'AI Offline'}
+              {!IS_ACTIVATE_AI_WORKSPACE
+                ? 'AI Unavailable'
+                : cloudAvailable
+                  ? 'AI Interactive Shell'
+                  : 'AI Offline'}
             </span>
           </div>
         </header>
@@ -587,38 +633,53 @@ export default function AiWorkspace({
                   <Sparkles className="h-8 w-8" />
                 </div>
                 <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Workspace Shell</h2>
-                <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                  Type an organic query or pick one of the sample prompt cards below to immediately lookup projects, task status, notes, or summarize calendar intervals.
-                </p>
+                {!IS_ACTIVATE_AI_WORKSPACE ? (
+                  <div
+                    className="mt-6 flex w-full max-w-md items-start gap-3 rounded-2xl border border-amber-300/50 bg-amber-50 p-5 text-left text-sm leading-6 text-amber-800 shadow-sm dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200"
+                    role="status"
+                  >
+                    <PowerOff className="h-5 w-5 shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="font-bold">AI Workspace is currently unavailable.</strong>{' '}
+                      The ProMana Assistant has been disabled for this environment, so queries are turned off for now. Please check back later or contact your workspace administrator.
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">
+                      Type an organic query or pick one of the sample prompt cards below to immediately lookup projects, task status, notes, or summarize calendar intervals.
+                    </p>
 
-                {/* Suggestions Cards Grid */}
-                <div className="mt-8 grid gap-4 sm:grid-cols-2 w-full">
-                  {suggestions.map((s, idx) => (
-                    <motion.button
-                      key={idx}
-                      type="button"
-                      whileHover={
-                        aiInteractionDisabled
-                          ? undefined
-                          : { scale: 1.025, y: -2 }
-                      }
-                      whileTap={aiInteractionDisabled ? undefined : { scale: 0.98 }}
-                      onClick={() => handleSubmit(null, s.prompt)}
-                      disabled={aiInteractionDisabled}
-                      aria-describedby={
-                        cloudAvailable ? undefined : 'ai-offline-help'
-                      }
-                      className="flex flex-col text-left p-5 rounded-2xl border border-slate-200/50 dark:border-white/5 bg-white/50 dark:bg-slate-950/20 hover:border-blue-500/30 dark:hover:border-blue-400/30 hover:bg-blue-50/10 dark:hover:bg-blue-500/5 transition duration-300 shadow-sm cursor-pointer group disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <span className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 group-hover:text-blue-500">
-                        {s.label}
-                      </span>
-                      <span className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400 line-clamp-2 italic font-medium">
-                        "{s.prompt}"
-                      </span>
-                    </motion.button>
-                  ))}
-                </div>
+                    {/* Suggestions Cards Grid */}
+                    <div className="mt-8 grid gap-4 sm:grid-cols-2 w-full">
+                      {suggestions.map((s, idx) => (
+                        <motion.button
+                          key={idx}
+                          type="button"
+                          whileHover={
+                            aiInteractionDisabled
+                              ? undefined
+                              : { scale: 1.025, y: -2 }
+                          }
+                          whileTap={aiInteractionDisabled ? undefined : { scale: 0.98 }}
+                          onClick={() => handleSubmit(null, s.prompt)}
+                          disabled={aiInteractionDisabled}
+                          aria-describedby={
+                            cloudAvailable ? undefined : 'ai-offline-help'
+                          }
+                          className="flex flex-col text-left p-5 rounded-2xl border border-slate-200/50 dark:border-white/5 bg-white/50 dark:bg-slate-950/20 hover:border-blue-500/30 dark:hover:border-blue-400/30 hover:bg-blue-50/10 dark:hover:bg-blue-500/5 transition duration-300 shadow-sm cursor-pointer group disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <span className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 group-hover:text-blue-500">
+                            {s.label}
+                          </span>
+                          <span className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400 line-clamp-2 italic font-medium">
+                            "{s.prompt}"
+                          </span>
+                        </motion.button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </motion.div>
             ) : (
               <div className="space-y-8">
@@ -815,10 +876,16 @@ export default function AiWorkspace({
               onChange={(e) => setPrompt(e.target.value)}
               disabled={aiInteractionDisabled}
               aria-describedby={
-                cloudAvailable ? undefined : 'ai-offline-help'
+                !IS_ACTIVATE_AI_WORKSPACE
+                  ? 'ai-unavailable-help'
+                  : cloudAvailable
+                    ? undefined
+                    : 'ai-offline-help'
               }
               placeholder={
-                !cloudAvailable
+                !IS_ACTIVATE_AI_WORKSPACE
+                  ? "AI Workspace is currently unavailable"
+                  : !cloudAvailable
                   ? "Ask AI is unavailable offline"
                   : usageLoading
                   ? "Syncing daily AI usage..."
@@ -839,7 +906,16 @@ export default function AiWorkspace({
               <Send className="h-4 w-4" />
             </button>
           </div>
-          {!cloudAvailable ? (
+          {!IS_ACTIVATE_AI_WORKSPACE ? (
+            <p
+              id="ai-unavailable-help"
+              className="mx-auto mt-3 max-w-4xl text-xs text-amber-700 dark:text-amber-300"
+              role="status"
+            >
+              AI Workspace is currently unavailable: Ask AI has been disabled
+              for this environment, so queries cannot be sent right now.
+            </p>
+          ) : !cloudAvailable ? (
             <p
               id="ai-offline-help"
               className="mx-auto mt-3 max-w-4xl text-xs text-amber-700 dark:text-amber-300"
