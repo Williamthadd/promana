@@ -13,6 +13,7 @@ export default function LaunchpadGrid({
   onUpdate,
   onTogglePin,
   addToast,
+  gridStyle,
 }) {
   const visibleItems = useMemo(() => {
     const normalizedSearch = searchQuery.trim().toLowerCase()
@@ -39,7 +40,7 @@ export default function LaunchpadGrid({
 
   if (loading) {
     return (
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="grid gap-4" style={gridStyle}>
         {Array.from({ length: 6 }).map((_, index) => (
           <LaunchpadSkeletonCard key={`launchpad-skeleton-${index}`} />
         ))}
@@ -81,7 +82,7 @@ export default function LaunchpadGrid({
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
             📌 Pinned
           </p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4" style={gridStyle}>
             {pinnedItems.map((item) => (
               <LaunchpadCard
                 key={item.id}
@@ -103,7 +104,7 @@ export default function LaunchpadGrid({
               All shortcuts
             </p>
           ) : null}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4" style={gridStyle}>
             {regularItems.map((item) => (
               <LaunchpadCard
                 key={item.id}

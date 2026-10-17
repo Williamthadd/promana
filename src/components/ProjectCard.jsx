@@ -744,7 +744,7 @@ export default function ProjectCard({
     <>
       <article
         id={`project-card-${project.id}`}
-        className="relative flex h-full scroll-mt-24 flex-col gap-5 rounded-3xl p-6 transition-all duration-300 glass-panel-light dark:glass-panel-dark shadow-md hover:shadow-xl hover:-translate-y-1 hover:scale-[1.015] border border-white/50 dark:border-white/10 hover:border-blue-500/30 dark:hover:border-blue-400/30"
+        className="relative flex h-full min-w-0 scroll-mt-24 flex-col gap-5 rounded-3xl p-6 transition-all duration-300 glass-panel-light dark:glass-panel-dark shadow-md hover:shadow-xl hover:-translate-y-1 hover:scale-[1.015] border border-white/50 dark:border-white/10 hover:border-blue-500/30 dark:hover:border-blue-400/30"
       >
         <div className="flex items-start justify-between gap-3">
           <LanguageBadge language={getPrimaryProjectLanguage(project)} />
@@ -912,13 +912,13 @@ export default function ProjectCard({
             <button
               type="button"
               onClick={() => setIsEditingName(true)}
-              className="text-left text-xl font-semibold tracking-tight text-slate-900 transition hover:text-blue-700 dark:text-white dark:hover:text-blue-200"
+              className="min-w-0 break-words text-left text-xl font-semibold tracking-tight text-slate-900 transition hover:text-blue-700 dark:text-white dark:hover:text-blue-200"
             >
               {project.displayName ?? 'Untitled project'}
             </button>
           )}
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex min-w-0 flex-wrap gap-2">
             {environmentNames.map((environment) => {
               const isActive = environment === activeEnvironment
               const hasEnvironmentPath = Boolean(
@@ -988,7 +988,7 @@ export default function ProjectCard({
           </div>
 
           {isEditingPath ? (
-            <div className="grid gap-2">
+            <div className="grid min-w-0 gap-2">
               <input
                 autoFocus
                 type="text"
@@ -1017,11 +1017,11 @@ export default function ProjectCard({
               </p>
             </div>
           ) : (
-            <div className="grid gap-2">
+            <div className="grid min-w-0 gap-2">
               <button
                 type="button"
                 onClick={() => setIsEditingPath(true)}
-                className="truncate text-left text-sm text-slate-500 transition hover:text-blue-700 dark:text-slate-400 dark:hover:text-blue-200"
+                className="min-w-0 truncate text-left text-sm text-slate-500 transition hover:text-blue-700 dark:text-slate-400 dark:hover:text-blue-200"
                 title={
                   environmentData.absolutePath || `Set ${activeEnvironment} path`
                 }
@@ -1062,7 +1062,7 @@ export default function ProjectCard({
               ) : null}
 
               {isEditingRepository ? (
-                <div className="grid gap-2">
+                <div className="grid min-w-0 gap-2">
                   <input
                     autoFocus
                     type="text"
@@ -1099,7 +1099,7 @@ export default function ProjectCard({
 
                     setIsEditingRepository(true)
                   }}
-                  className={`inline-flex items-center gap-2 text-left text-xs font-semibold transition ${
+                  className={`inline-flex min-w-0 items-center gap-2 text-left text-xs font-semibold transition ${
                     project.repositoryUrl
                       ? 'text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200'
                       : 'text-slate-500 hover:text-blue-700 dark:text-slate-400 dark:hover:text-blue-200'
@@ -1111,7 +1111,7 @@ export default function ProjectCard({
                   }
                 >
                   <Link2 className="h-3.5 w-3.5" />
-                  <span className="max-w-[13rem] truncate">
+                  <span className="min-w-0 max-w-full truncate">
                     {project.repositoryUrl
                       ? getRepositoryLabel(project.repositoryUrl)
                       : 'Add repository link'}
@@ -1144,12 +1144,12 @@ export default function ProjectCard({
               }
             }}
             placeholder="frontend, client, firebase"
-            className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+            className="w-full min-w-0 rounded-xl border border-gray-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
           />
         )}
 
         {isLanguageEditorOpen && (
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <input
               autoFocus
               type="text"
@@ -1168,7 +1168,7 @@ export default function ProjectCard({
                 }
               }}
               placeholder="TypeScript, Go, Kotlin"
-              className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+              className="w-full min-w-0 rounded-xl border border-gray-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
             />
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Separate multiple languages with commas. You can add custom
@@ -1191,13 +1191,13 @@ export default function ProjectCard({
               }
             }}
             placeholder={`Capture ${activeEnvironment} notes, repo reminders, or local setup steps...`}
-            className="resize-none rounded-2xl border border-gray-200 px-3 py-3 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+            className="w-full min-w-0 resize-none rounded-2xl border border-gray-200 px-3 py-3 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
           />
         )}
 
         <LanguageBar languages={project.languagesList ?? project.languages} />
 
-        <div className="grid gap-1 text-sm text-slate-500 dark:text-slate-400">
+        <div className="grid min-w-0 gap-1 text-sm text-slate-500 dark:text-slate-400">
           <p>{`Updated ${formatRelativeTime(project.lastUpdatedAt)}`}</p>
           {environmentData.lastOpenedAt ? (
             <p>{`Last opened ${formatRelativeTime(environmentData.lastOpenedAt)}`}</p>
@@ -1211,7 +1211,7 @@ export default function ProjectCard({
         ) : null}
 
         {!!project.tags?.length && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex min-w-0 flex-wrap gap-2">
             {project.tags.map((tag) => (
               <button
                 key={tag}
@@ -1225,18 +1225,18 @@ export default function ProjectCard({
           </div>
         )}
 
-        <div className="mt-auto flex justify-end">
+        <div className="mt-auto flex min-w-0 flex-wrap justify-end gap-2">
           {environmentData.isBroken || !environmentData.absolutePath ? (
             <button
               type="button"
               onClick={() => setIsEditingPath(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+              className="inline-flex min-w-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
             >
-              <FolderOpen className="h-4 w-4" />
-              {`Set ${activeEnvironment} path`}
+              <FolderOpen className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 truncate">{`Set ${activeEnvironment} path`}</span>
             </button>
           ) : (
-            <div className="relative inline-flex" ref={editorPickerRef}>
+            <div className="relative inline-flex min-w-0" ref={editorPickerRef}>
               <button
                 type="button"
                 onClick={() => {
@@ -1244,10 +1244,12 @@ export default function ProjectCard({
                     void handleOpenEditor(selectedEditor)
                   }
                 }}
-                className="inline-flex items-center justify-center gap-2 rounded-l-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+                className="inline-flex min-w-0 items-center justify-center gap-2 rounded-l-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
               >
-                <FolderOpen className="h-4 w-4" />
-                {selectedEditor?.label ?? 'Open project'}
+                <FolderOpen className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 truncate">
+                  {selectedEditor?.label ?? 'Open project'}
+                </span>
               </button>
 
               <button

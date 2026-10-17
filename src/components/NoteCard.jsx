@@ -434,7 +434,7 @@ export default function NoteCard({
 
   return (
     <>
-      <article className="flex h-full flex-col gap-5 rounded-3xl p-6 transition-all duration-300 glass-panel-light dark:glass-panel-dark shadow-md hover:shadow-xl hover:-translate-y-1 hover:scale-[1.015] border border-white/50 dark:border-white/10 hover:border-blue-500/30 dark:hover:border-blue-400/30">
+      <article className="flex h-full min-w-0 flex-col gap-5 rounded-3xl p-6 transition-all duration-300 glass-panel-light dark:glass-panel-dark shadow-md hover:shadow-xl hover:-translate-y-1 hover:scale-[1.015] border border-white/50 dark:border-white/10 hover:border-blue-500/30 dark:hover:border-blue-400/30">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 flex-wrap gap-2">
             <span
@@ -551,7 +551,7 @@ export default function NoteCard({
           </div>
         </div>
 
-        <div>
+        <div className="min-w-0">
           <h3 className="line-clamp-2 text-xl font-bold tracking-tight text-slate-900 dark:text-white">
             {getNoteTitle(note)}
           </h3>
@@ -563,7 +563,7 @@ export default function NoteCard({
         </div>
 
         {!!note.tags?.length && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex min-w-0 flex-wrap gap-2">
             {note.tags.map((tag) => (
               <button
                 key={tag}

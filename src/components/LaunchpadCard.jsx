@@ -263,7 +263,7 @@ export default function LaunchpadCard({
 
   return (
     <>
-      <article className="relative flex h-full flex-col gap-5 rounded-3xl p-6 transition-all duration-300 glass-panel-light dark:glass-panel-dark shadow-md hover:shadow-xl hover:-translate-y-1 hover:scale-[1.015] border border-white/50 dark:border-white/10 hover:border-blue-500/30 dark:hover:border-blue-400/30">
+      <article className="relative flex h-full min-w-0 flex-col gap-5 rounded-3xl p-6 transition-all duration-300 glass-panel-light dark:glass-panel-dark shadow-md hover:shadow-xl hover:-translate-y-1 hover:scale-[1.015] border border-white/50 dark:border-white/10 hover:border-blue-500/30 dark:hover:border-blue-400/30">
         <div className="flex items-start justify-between gap-3">
           <LaunchpadFavicon url={item.url} name={item.name} size={48} />
 
@@ -415,7 +415,7 @@ export default function LaunchpadCard({
           </div>
         </div>
 
-        <div className="grid gap-3">
+        <div className="grid min-w-0 gap-3">
           {isEditingName ? (
             <input
               autoFocus
@@ -434,7 +434,7 @@ export default function LaunchpadCard({
                   setNameDraft(item.name ?? '')
                 }
               }}
-              className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xl font-semibold text-slate-900 outline-none focus:border-blue-400 dark:border-blue-500/40 dark:bg-slate-800 dark:text-white"
+              className="w-full min-w-0 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xl font-semibold text-slate-900 outline-none focus:border-blue-400 dark:border-blue-500/40 dark:bg-slate-800 dark:text-white"
             />
           ) : (
             <button
@@ -443,7 +443,7 @@ export default function LaunchpadCard({
                 setNameDraft(item.name ?? '')
                 setIsEditingName(true)
               }}
-              className="text-left text-xl font-semibold tracking-tight text-slate-900 transition hover:text-blue-700 dark:text-white dark:hover:text-blue-200"
+              className="min-w-0 break-words text-left text-xl font-semibold tracking-tight text-slate-900 transition hover:text-blue-700 dark:text-white dark:hover:text-blue-200"
             >
               {item.name}
             </button>
@@ -468,7 +468,7 @@ export default function LaunchpadCard({
                 }
               }}
               placeholder="https://github.com"
-              className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 dark:border-blue-500/40 dark:bg-slate-800 dark:text-white"
+              className="w-full min-w-0 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 dark:border-blue-500/40 dark:bg-slate-800 dark:text-white"
             />
           ) : (
             <button
@@ -477,7 +477,7 @@ export default function LaunchpadCard({
                 setUrlDraft(item.url ?? '')
                 setIsEditingUrl(true)
               }}
-              className="truncate text-left text-sm text-slate-500 transition hover:text-blue-700 dark:text-slate-400 dark:hover:text-blue-200"
+              className="min-w-0 truncate text-left text-sm text-slate-500 transition hover:text-blue-700 dark:text-slate-400 dark:hover:text-blue-200"
               title={item.url}
             >
               {domain || item.url}
@@ -506,7 +506,7 @@ export default function LaunchpadCard({
                 }
               }}
               placeholder="Add any notes about this website..."
-              className="resize-none rounded-2xl border border-gray-200 px-3 py-3 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
+              className="w-full min-w-0 resize-none rounded-2xl border border-gray-200 px-3 py-3 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-500/20"
             />
           ) : item.notes ? (
             <div

@@ -11,6 +11,7 @@ import BackgroundColorControl from './BackgroundColorControl'
 import BrandMark from './BrandMark'
 import DesignModeControl from './DesignModeControl'
 import UserAvatar from './UserAvatar'
+import WorkspaceDisplayControl from './WorkspaceDisplayControl'
 
 export default function Header({
   user,
@@ -22,6 +23,11 @@ export default function Header({
   onResetLightBackgroundColor,
   designMode,
   onChangeDesignMode,
+  workspaceBoxSize,
+  workspaceTextSize,
+  onChangeWorkspaceBoxSize,
+  onChangeWorkspaceTextSize,
+  onResetWorkspaceDisplay,
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef(null)
@@ -92,6 +98,14 @@ export default function Header({
             lightBackgroundColor={lightBackgroundColor}
             onChange={onChangeLightBackgroundColor}
             onReset={onResetLightBackgroundColor}
+          />
+
+          <WorkspaceDisplayControl
+            boxSize={workspaceBoxSize}
+            textSize={workspaceTextSize}
+            onChangeBoxSize={onChangeWorkspaceBoxSize}
+            onChangeTextSize={onChangeWorkspaceTextSize}
+            onReset={onResetWorkspaceDisplay}
           />
 
           <DesignModeControl

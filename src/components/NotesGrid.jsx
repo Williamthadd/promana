@@ -16,6 +16,7 @@ export default function NotesGrid({
   onTogglePin,
   onTagClick,
   addToast,
+  gridStyle,
 }) {
   const visibleNotes = useMemo(() => {
     const normalizedType = filterType.trim().toLowerCase()
@@ -43,7 +44,7 @@ export default function NotesGrid({
 
   if (loading) {
     return (
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="grid gap-4" style={gridStyle}>
         {Array.from({ length: 6 }).map((_, index) => (
           <NoteSkeletonCard key={`note-skeleton-${index}`} />
         ))}
@@ -86,7 +87,7 @@ export default function NotesGrid({
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
             📌 Pinned
           </p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4" style={gridStyle}>
             {pinnedNotes.map((note) => (
               <NoteCard
                 key={note.id}
@@ -110,7 +111,7 @@ export default function NotesGrid({
               All notes
             </p>
           ) : null}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4" style={gridStyle}>
             {regularNotes.map((note) => (
               <NoteCard
                 key={note.id}

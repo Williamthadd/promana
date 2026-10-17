@@ -74,6 +74,7 @@ import useProjects from '../hooks/useProjects'
 import useTaskGroups from '../hooks/useTaskGroups'
 import useToast from '../hooks/useToast'
 import useUserLimits from '../hooks/useUserLimits'
+import useWorkspaceDisplay from '../hooks/useWorkspaceDisplay'
 import {
   getTimeValue,
 } from '../utils/formatters'
@@ -102,6 +103,10 @@ import {
   getSubtleCrypto,
   importNoteKey,
 } from '../utils/noteEncryption'
+import {
+  getWorkspaceGridStyle,
+  getWorkspaceTextStyle,
+} from '../utils/workspaceDisplay'
 
 function isTypingTarget(element) {
   if (!element) {
@@ -146,6 +151,14 @@ const DASHBOARD_MODES = new Set([
   'tasks',
   'calendar',
   'ai',
+])
+
+// Only these workspaces respond to the card/text size preference.
+const SIZE_CONTROLLED_MODES = new Set([
+  'projects',
+  'launchpad',
+  'notes',
+  'tasks',
 ])
 
 function getInitialDashboardMode() {
@@ -208,6 +221,25 @@ export default function DashboardPage() {
   const { toasts, addToast, removeToast } = useToast()
   const [dashboardMode, setDashboardMode] = useState(getInitialDashboardMode)
   const [designMode, setDesignMode] = useState(getInitialDesignMode)
+  const {
+    boxSize: workspaceBoxSize,
+    textSize: workspaceTextSize,
+    setBoxSize: setWorkspaceBoxSize,
+    setTextSize: setWorkspaceTextSize,
+    resetWorkspaceDisplay,
+  } = useWorkspaceDisplay()
+  const workspaceTextStyle = useMemo(
+    () => getWorkspaceTextStyle(workspaceTextSize),
+    [workspaceTextSize],
+  )
+  const standardGridStyle = useMemo(
+    () => getWorkspaceGridStyle(workspaceBoxSize, 'standard'),
+    [workspaceBoxSize],
+  )
+  const taskGridStyle = useMemo(
+    () => getWorkspaceGridStyle(workspaceBoxSize, 'tasks'),
+    [workspaceBoxSize],
+  )
   const [search, setSearch] = useState('')
   const [launchpadSearch, setLaunchpadSearch] = useState('')
   const [launchpadFilterCategory, setLaunchpadFilterCategory] = useState('all')
@@ -1396,6 +1428,11 @@ export default function DashboardPage() {
         onResetLightBackgroundColor={resetLightBackgroundColor}
         designMode={designMode}
         onChangeDesignMode={setDesignMode}
+        workspaceBoxSize={workspaceBoxSize}
+        workspaceTextSize={workspaceTextSize}
+        onChangeWorkspaceBoxSize={setWorkspaceBoxSize}
+        onChangeWorkspaceTextSize={setWorkspaceTextSize}
+        onResetWorkspaceDisplay={resetWorkspaceDisplay}
       />
 
       <main className="relative mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
@@ -1983,6 +2020,11 @@ export default function DashboardPage() {
           id="active-workspace"
           ref={workspaceContentRef}
           className="grid scroll-mt-24 gap-8"
+          style={
+            SIZE_CONTROLLED_MODES.has(dashboardMode)
+              ? workspaceTextStyle
+              : undefined
+          }
         >
           {dashboardMode === 'projects' ? (
           <>
@@ -2006,7 +2048,7 @@ export default function DashboardPage() {
             </section>
 
             {projectsLoading ? (
-              <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+              <section className="grid gap-6" style={standardGridStyle}>
                 {Array.from({ length: 6 }).map((_, index) => (
                   <SkeletonCard key={`skeleton-${index}`} />
                 ))}
@@ -2068,7 +2110,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-6" style={standardGridStyle}>
                   {pinnedProjects.map((project) => (
                     <ProjectCard
                       key={project.id}
@@ -2095,7 +2137,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-6" style={standardGridStyle}>
                   {regularProjects.map((project) => (
                     <ProjectCard
                       key={project.id}
@@ -2209,6 +2251,7 @@ export default function DashboardPage() {
               onTogglePin={handleToggleNotePin}
               onTagClick={setNotesFilterTag}
               addToast={addToast}
+              gridStyle={standardGridStyle}
             />
           </div>
             ) : (
@@ -2276,7 +2319,7 @@ export default function DashboardPage() {
             </section>
 
             {taskGroupsLoading ? (
-              <section className="grid gap-6 lg:grid-cols-2">
+              <section className="grid gap-6" style={taskGridStyle}>
                 {Array.from({ length: 4 }).map((_, index) => (
                   <TaskGroupSkeletonCard key={`task-skeleton-${index}`} />
                 ))}
@@ -2340,7 +2383,7 @@ export default function DashboardPage() {
                       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
                         📌 Pinned
                       </p>
-                      <div className="grid items-start gap-6 lg:grid-cols-2">
+                      <div className="grid items-start gap-6" style={taskGridStyle}>
                         {pinnedTaskGroups.map((taskGroup) => (
                           <TaskGroupCard
                             key={taskGroup.id}
@@ -2363,7 +2406,7 @@ export default function DashboardPage() {
                           All task groups
                         </p>
                       ) : null}
-                      <div className="grid items-start gap-6 lg:grid-cols-2">
+                      <div className="grid items-start gap-6" style={taskGridStyle}>
                         {regularTaskGroups.map((taskGroup) => (
                           <TaskGroupCard
                             key={taskGroup.id}
@@ -2468,6 +2511,7 @@ export default function DashboardPage() {
               onUpdate={handleUpdateLaunchpadItem}
               onTogglePin={handleToggleLaunchpadPin}
               addToast={addToast}
+              gridStyle={standardGridStyle}
             />
 
           </div>
