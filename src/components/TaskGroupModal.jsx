@@ -49,6 +49,7 @@ function TaskGroupModalForm({ taskGroup, onClose, onSubmit, isSaving }) {
   const [formError, setFormError] = useState("")
   const [draggedTaskId, setDraggedTaskId] = useState(null)
   const [dragOverTaskId, setDragOverTaskId] = useState(null)
+  const [focusTaskId, setFocusTaskId] = useState(null)
   const isEditing = Boolean(taskGroup?.id)
 
   function updateTaskText(taskId, text) {
@@ -76,13 +77,31 @@ function TaskGroupModalForm({ taskGroup, onClose, onSubmit, isSaving }) {
   }
 
   function addTask() {
+    const nextTask = createTaskItem("", draft.tasks.length)
+
     setDraft((currentDraft) => ({
       ...currentDraft,
-      tasks: [
-        ...currentDraft.tasks,
-        createTaskItem("", currentDraft.tasks.length),
-      ],
+      tasks: [...currentDraft.tasks, nextTask],
     }))
+    setFocusTaskId(nextTask.id)
+  }
+
+  // Inserts a new point directly below the task whose "+ Task" button was clicked.
+  function addTaskAfter(taskId) {
+    const nextTask = createTaskItem("", 1)
+
+    setDraft((currentDraft) => {
+      const currentIndex = currentDraft.tasks.findIndex(
+        (task) => task.id === taskId,
+      )
+      const insertionIndex =
+        currentIndex === -1 ? currentDraft.tasks.length : currentIndex + 1
+      const nextTasks = [...currentDraft.tasks]
+
+      nextTasks.splice(insertionIndex, 0, nextTask)
+      return { ...currentDraft, tasks: nextTasks }
+    })
+    setFocusTaskId(nextTask.id)
   }
 
   // Removes a task item
@@ -361,6 +380,7 @@ function TaskGroupModalForm({ taskGroup, onClose, onSubmit, isSaving }) {
                         updateTaskText(task.id, event.target.value)
                       }
                       placeholder={`To-do point ${index + 1}`}
+                      autoFocus={task.id === focusTaskId}
                       className={`min-w-0 rounded-xl border border-white/40 bg-white/80 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-white/10 dark:bg-slate-950/80 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-400/20 ${
                         task.isCompleted
                           ? "text-slate-400 line-through dark:text-slate-500"
@@ -383,14 +403,25 @@ function TaskGroupModalForm({ taskGroup, onClose, onSubmit, isSaving }) {
                       ))}
                     </select>
 
-                    <button
-                      type="button"
-                      onClick={() => removeTask(task.id)}
-                      className="inline-flex h-10 w-10 items-center justify-center justify-self-end rounded-xl text-slate-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-300 cursor-pointer"
-                      aria-label={`Remove point ${index + 1}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => removeTask(task.id)}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-300 cursor-pointer"
+                        aria-label={`Remove point ${index + 1}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addTaskAfter(task.id)}
+                        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-200/80 bg-blue-50/70 text-blue-700 transition hover:border-blue-300 hover:bg-blue-100 dark:border-blue-400/25 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:border-blue-400/40 dark:hover:bg-blue-500/15 cursor-pointer"
+                        aria-label={`Add a new task below point ${index + 1}`}
+                        title={`Add a new task below point ${index + 1}`}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
                 <button

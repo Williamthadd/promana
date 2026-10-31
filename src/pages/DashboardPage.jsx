@@ -2477,7 +2477,7 @@ export default function DashboardPage() {
                     value={launchpadSearch}
                     onChange={(event) => setLaunchpadSearch(event.target.value)}
                     placeholder="Search shortcuts..."
-                    className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:ring-blue-500/20"
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:focus:ring-blue-500/20"
                   />
                 </div>
                 <label className="grid gap-2 lg:min-w-56">
